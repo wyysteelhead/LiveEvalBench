@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "artifacts.schema.json",
+  "title": "Artifacts",
+  "description": "Runtime artifacts produced by the autonomous environment setup agent.",
+  "type": "object",
+  "required": ["state", "revision", "last_updated"],
+  "properties": {
+    "state": {
+      "type": "string",
+      "enum": ["planned", "installing", "starting", "ready", "failed", "stopped"],
+      "description": "Current lifecycle state of the environment"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonically increasing write counter"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of last write"
+    },
+    "ports": {
+      "type": "array",
+      "description": "Active port leases (required when state=ready)",
+      "items": {
+        "type": "object",
+        "required": ["port", "url"],
+        "properties": {
+          "port":     { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "url":      { "type": "string", "format": "uri" },
+          "lease_id": { "type": "string" },
+          "name":     { "type": "string" }
+        }
+      }
+    },
+    "pids": {
+      "type": "array",
+      "description": "PIDs of background processes started by the agent",
+      "items": { "type": "integer" }
+    },
+    "cleanup": {
+      "type": "object",
+      "description": "Cleanup instructions",
+      "properties": {
+        "stop": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Commands to run on cleanup"
+        },
+        "remove_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths to delete on cleanup"
+        }
+      }
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message when state=failed"
+    },
+    "manifest": {
+      "$ref": "manifest.schema.json",
+      "description": "Embedded manifest snapshot"
+    }
+  },
+  "if": {
+    "properties": { "state": { "const": "ready" } },
+    "required": ["state"]
+  },
+  "then": {
+    "required": ["ports"],
+    "properties": {
+      "ports": { "minItems": 1 }
+    }
+  },
+  "additionalProperties": true
+}

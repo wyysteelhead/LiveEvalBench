@@ -1,0 +1,614 @@
+{
+  "version": "1.0.0",
+  "source": {
+    "scanner_checks": [
+      {
+        "check_id": "src_no_transition_all",
+        "category": "animations",
+        "type": "regex_absent",
+        "pattern": "transition\\s*:\\s*all",
+        "pass_detail": "No 'transition: all' found",
+        "fail_detail": "Found 'transition: all' — prefer specific properties"
+      },
+      {
+        "check_id": "src_reduced_motion",
+        "category": "animations",
+        "type": "regex_present",
+        "pattern": "prefers-reduced-motion",
+        "pass_detail": "prefers-reduced-motion media query found",
+        "fail_detail": "Missing prefers-reduced-motion media query"
+      },
+      {
+        "check_id": "src_no_user_scalable",
+        "category": "interactions",
+        "type": "regex_absent",
+        "pattern": "<meta[^>]+name=[\"']viewport[\"'][^>]+(?:user-scalable\\s*=\\s*no|maximum-scale\\s*=\\s*1(?!\\d))",
+        "pass_detail": "Viewport meta does not disable user zoom",
+        "fail_detail": "Viewport meta disables user zoom (user-scalable=no or maximum-scale=1)"
+      },
+      {
+        "check_id": "src_no_div_onclick",
+        "category": "content",
+        "type": "regex_count_zero",
+        "pattern": "<div[^>]+onClick",
+        "pass_detail": "No <div onClick> found",
+        "fail_detail": "Found {count} <div onClick> — use <button> instead"
+      },
+      {
+        "check_id": "src_no_a_as_button",
+        "category": "content",
+        "type": "regex_count_zero",
+        "pattern": "<a\\b(?![^>]*href)[^>]*onClick",
+        "pass_detail": "No <a onClick> without href found",
+        "fail_detail": "Found {count} <a onClick> without href — use <button> instead"
+      },
+      {
+        "check_id": "src_heading_h1",
+        "category": "content",
+        "type": "heading_has_h1",
+        "skip_if_no_headings": true,
+        "pass_detail": "<h1> found",
+        "fail_detail": "No <h1> found — page should have a top-level heading"
+      },
+      {
+        "check_id": "src_heading_hierarchy",
+        "category": "content",
+        "type": "heading_no_skip",
+        "skip_if_no_headings": true,
+        "pass_detail": "Heading levels are sequential",
+        "fail_detail": "Heading levels skip (e.g., h1 -> h3) — maintain sequential hierarchy"
+      },
+      {
+        "check_id": "src_icon_btn_aria_label",
+        "category": "content",
+        "type": "regex_count_zero",
+        "pattern": "<button(?![^>]*aria-label)[^>]*>\\s*(?:<svg|<img|<i\\b)",
+        "pass_detail": "All icon buttons appear to have aria-label",
+        "fail_detail": "Found {count} icon button(s) without aria-label"
+      },
+      {
+        "check_id": "src_input_autocomplete",
+        "category": "forms",
+        "type": "regex_count_zero",
+        "pattern": "<input(?![^>]*autocomplete)[^>]*type=['\"](?:text|email|tel|password|search)['\"]",
+        "pass_detail": "All text inputs appear to have autocomplete",
+        "fail_detail": "Found {count} input(s) missing autocomplete attribute"
+      },
+      {
+        "check_id": "src_img_dimensions",
+        "category": "performance",
+        "type": "regex_count_zero",
+        "pattern": "<img(?![^>]*width)[^>]*>",
+        "pass_detail": "All <img> elements appear to have width set",
+        "fail_detail": "Found {count} <img> element(s) without explicit width — may cause CLS"
+      }
+    ],
+    "agent_checks": [
+      {
+        "check_id": "src_compositor_transitions",
+        "category": "animations",
+        "description": "Transitions should use compositor-friendly properties (transform, opacity) rather than layout-triggering properties (width, height, top, left, bottom, right, margin, padding). Check if any CSS transitions animate layout-triggering properties."
+      },
+      {
+        "check_id": "src_no_paste_block",
+        "category": "interactions",
+        "description": "Paste must not be blocked. Check if any onPaste handler calls preventDefault(), or if any event listener blocks paste in inputs or textareas."
+      },
+      {
+        "check_id": "src_touch_action",
+        "category": "interactions",
+        "description": "Interactive controls (buttons, links, inputs) should have touch-action: manipulation to prevent double-tap zoom on mobile. Check if this property is applied."
+      },
+      {
+        "check_id": "src_aria_live",
+        "category": "interactions",
+        "description": "Async updates (toasts, notifications, inline validation messages) should use aria-live to announce changes to screen readers. If the UI has async feedback mechanisms, check whether they use aria-live. If there are no async feedback elements, mark as passed."
+      },
+      {
+        "check_id": "src_input_type",
+        "category": "forms",
+        "description": "Inputs should use the most specific type attribute: email for email fields, tel for phone/telephone fields, number for numeric fields, search for search fields, url for URL fields, password for password fields. Check if any inputs use type='text' when a more specific type would be appropriate."
+      },
+      {
+        "check_id": "src_label_for",
+        "category": "forms",
+        "description": "Every visible input (text, email, tel, password, search, textarea, select) must have an associated label via label[for], aria-label, or aria-labelledby. Check if all inputs are properly labeled."
+      }
+    ]
+  },
+  "dom": {
+    "auditor_checks": [
+      {
+        "check_id": "dom_input_font_size",
+        "category": "mobile",
+        "type": "js_count_zero",
+        "expression": "Array.from(document.querySelectorAll('input, textarea, select')).filter(el => { const fs = parseFloat(window.getComputedStyle(el).fontSize); return fs < 16; }).length",
+        "pass_detail": "All inputs have font-size >= 16px",
+        "fail_detail": "{value} input(s) have font-size < 16px (causes iOS zoom)"
+      },
+      {
+        "check_id": "dom_hit_target_size",
+        "category": "mobile",
+        "type": "js_count_zero",
+        "expression": "Array.from(document.querySelectorAll('button, a, [role=\"button\"], input[type=\"checkbox\"], input[type=\"radio\"]')).filter(el => { const r = el.getBoundingClientRect(); return r.width < 24 || r.height < 24; }).length",
+        "pass_detail": "All interactive elements meet 24px minimum hit target",
+        "fail_detail": "{value} interactive element(s) smaller than 24x24px"
+      },
+      {
+        "check_id": "dom_page_title",
+        "category": "accessibility",
+        "type": "js_truthy",
+        "expression": "document.title",
+        "pass_detail": "Page title: '{value}'",
+        "fail_detail": "Page <title> is empty or missing"
+      },
+      {
+        "check_id": "dom_landmark_roles",
+        "category": "accessibility",
+        "type": "js_count_gt_zero",
+        "expression": "document.querySelectorAll('main, nav, header, footer, aside, [role=\"main\"], [role=\"navigation\"], [role=\"banner\"], [role=\"contentinfo\"]').length",
+        "pass_detail": "Found {value} landmark role(s)",
+        "fail_detail": "No landmark roles found (main, nav, header, footer, etc.)"
+      },
+      {
+        "check_id": "dom_viewport_meta",
+        "category": "interactions",
+        "type": "js_falsy",
+        "expression": "(function() { const meta = document.querySelector('meta[name=\"viewport\"]'); if (!meta) return false; const content = meta.getAttribute('content') || ''; return /user-scalable\\s*=\\s*no/i.test(content) || /maximum-scale\\s*=\\s*1(?!\\d)/i.test(content); })()",
+        "pass_detail": "Viewport meta does not disable user zoom",
+        "fail_detail": "Viewport meta disables user zoom (user-scalable=no or maximum-scale=1)"
+      },
+      {
+        "check_id": "dom_label_association",
+        "category": "forms",
+        "type": "js_count_zero",
+        "expression": "(function() { const inputs = Array.from(document.querySelectorAll('input:not([type=\"hidden\"]):not([type=\"submit\"]):not([type=\"button\"]):not([type=\"reset\"]):not([type=\"image\"]), textarea, select')); return inputs.filter(el => { if (el.getAttribute('aria-label') || el.getAttribute('aria-labelledby')) return false; if (el.id && document.querySelector('label[for=\"' + el.id + '\"]')) return false; const label = el.closest('label'); if (label) return false; return true; }).length; })()",
+        "pass_detail": "All inputs have associated labels",
+        "fail_detail": "{value} input(s) have no associated label or aria-label"
+      }
+    ],
+    "agent_checks": [
+      {
+        "check_id": "dom_focus_ring",
+        "category": "accessibility",
+        "description": "Every focusable element must show a visible focus ring when focused. This can be implemented via CSS outline, box-shadow, or border changes on :focus or :focus-visible. A violation is when outline is set to none/0 with no compensating box-shadow or border change. Check if focus ring styles are present and not fully suppressed."
+      }
+    ]
+  },
+  "interaction_visual": {
+    "standards": [
+      {
+        "standard_id": "iv_layout_spacing_grid",
+        "guideline_ref": "visual_quality",
+        "category": "visual",
+        "type": "generic",
+        "description": "Check layout rhythm and spacing consistency across major sections. Verify spacing follows a consistent modular scale (preferably 8px steps), and identify obvious crowding, overlap, or misalignment between adjacent blocks.",
+        "check_nodes": [
+          {
+            "node_id": "iv_layout_spacing_grid_n1",
+            "assertion": "Check layout rhythm and spacing consistency across major sections. Verify spacing follows a consistent modular scale (preferably 8px steps), and identify obvious crowding, overlap, or misalignment between adjacent blocks.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_visual_alignment_precision",
+        "guideline_ref": "visual_quality",
+        "category": "visual",
+        "type": "generic",
+        "description": "Inspect pixel-level alignment of key components (titles, cards, buttons, inputs). Flag clear misalignment, uneven baselines, clipping, or accidental overlap. Minor sub-2px drift can be tolerated; obvious displacement should fail.",
+        "check_nodes": [
+          {
+            "node_id": "iv_visual_alignment_precision_n1",
+            "assertion": "Inspect pixel-level alignment of key components (titles, cards, buttons, inputs). Flag clear misalignment, uneven baselines, clipping, or accidental overlap. Minor sub-2px drift can be tolerated; obvious displacement should fail.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_color_palette_control",
+        "guideline_ref": "visual_quality",
+        "category": "visual",
+        "type": "generic",
+        "description": "Evaluate color and style coherence. Check whether the primary color system appears controlled (roughly no more than 3 dominant theme colors), and fail if combinations look glaring, chaotic, or visually fatiguing.",
+        "check_nodes": [
+          {
+            "node_id": "iv_color_palette_control_n1",
+            "assertion": "Evaluate color and style coherence. Check whether the primary color system appears controlled (roughly no more than 3 dominant theme colors), and fail if combinations look glaring, chaotic, or visually fatiguing.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_typography_readability",
+        "guideline_ref": "visual_quality",
+        "category": "visual",
+        "type": "generic",
+        "description": "Assess typography readability in rendered UI: body text should generally be readable (target >=14px) with comfortable line spacing (target >1.5). Fail if substantial text appears too small, too dense, or visually inconsistent.",
+        "check_nodes": [
+          {
+            "node_id": "iv_typography_readability_n1",
+            "assertion": "Assess typography readability in rendered UI: body text should generally be readable (target >=14px) with comfortable line spacing (target >1.5). Fail if substantial text appears too small, too dense, or visually inconsistent.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_feedback_latency",
+        "guideline_ref": "interactive_dynamics",
+        "category": "feedback",
+        "type": "generic",
+        "description": "Run interaction actions (click, submit, toggle) and verify user-visible feedback is effectively immediate. Treat delayed response beyond acceptable UX threshold (~100ms perceived delay), no-feedback actions, or persistent visual trailing artifacts as failures.",
+        "check_nodes": [
+          {
+            "node_id": "iv_feedback_latency_n1",
+            "assertion": "Run interaction actions (click, submit, toggle) and verify user-visible feedback is effectively immediate. Treat delayed response beyond acceptable UX threshold (~100ms perceived delay), no-feedback actions, or persistent visual trailing artifacts as failures.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_transition_rhythm",
+        "guideline_ref": "interactive_dynamics",
+        "category": "feedback",
+        "type": "ui_specific",
+        "description": "Where transitions/animations exist, verify motion rhythm is comfortable: avoid abrupt flashes and overly long delays. Preferred transition window is about 300-500ms. Fail for clearly jarring or sluggish transitions.",
+        "check_nodes": [
+          {
+            "node_id": "iv_transition_rhythm_n1",
+            "assertion": "Where transitions/animations exist, verify motion rhythm is comfortable: avoid abrupt flashes and overly long delays. Preferred transition window is about 300-500ms. Fail for clearly jarring or sluggish transitions.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_visual_guidance_discoverability",
+        "guideline_ref": "interactive_dynamics",
+        "category": "interactions",
+        "type": "generic",
+        "description": "Check visual guidance and affordance clarity. Primary actions and critical controls should be easy to find and visually emphasized. Fail if key function buttons are hard to discover or visually buried.",
+        "check_nodes": [
+          {
+            "node_id": "iv_visual_guidance_discoverability_n1",
+            "assertion": "Check visual guidance and affordance clarity. Primary actions and critical controls should be easy to find and visually emphasized. Fail if key function buttons are hard to discover or visually buried.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_workflow_triplet",
+        "guideline_ref": "functionality_engineering",
+        "category": "interactions",
+        "type": "ui_specific",
+        "description": "Validate at least one real end-to-end workflow using <target, action, verification>: perform concrete user input/action, then verify expected state/page/result appears. Fail if workflow cannot complete reliably.",
+        "check_nodes": [
+          {
+            "node_id": "iv_workflow_triplet_n1",
+            "assertion": "Validate at least one real end-to-end workflow using <target, action, verification>: perform concrete user input/action, then verify expected state/page/result appears. Fail if workflow cannot complete reliably.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_state_lifecycle_resilience",
+        "guideline_ref": "functionality_engineering",
+        "category": "interactions",
+        "type": "ui_specific",
+        "description": "When applicable, test state/lifecycle robustness (e.g., refresh persistence, pause/resume, retry/reconnect, draft retention). Mark not_applicable only when feature truly does not exist; fail if state handling is clearly fragile.",
+        "check_nodes": [
+          {
+            "node_id": "iv_state_lifecycle_resilience_n1",
+            "assertion": "When applicable, test state/lifecycle robustness (e.g., refresh persistence, pause/resume, retry/reconnect, draft retention). Mark not_applicable only when feature truly does not exist; fail if state handling is clearly fragile.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_exception_handling",
+        "guideline_ref": "functionality_engineering",
+        "category": "interactions",
+        "type": "generic",
+        "description": "Probe boundary/error handling with reasonable invalid or edge inputs. Verify the UI gives understandable feedback and recovers gracefully. Fail when errors are silent, break flow, or leave unusable states.",
+        "check_nodes": [
+          {
+            "node_id": "iv_exception_handling_n1",
+            "assertion": "Probe boundary/error handling with reasonable invalid or edge inputs. Verify the UI gives understandable feedback and recovers gracefully. Fail when errors are silent, break flow, or leave unusable states.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      },
+      {
+        "standard_id": "iv_engineering_quality_ui_signal",
+        "guideline_ref": "functionality_engineering",
+        "category": "interactions",
+        "type": "generic",
+        "description": "Infer engineering quality from runtime behavior: interaction logic should be consistent and not duplicated/conflicting across similar components. Fail if behavior appears inconsistent, brittle, or obviously over-engineered with distracting effects hurting usability/performance.",
+        "check_nodes": [
+          {
+            "node_id": "iv_engineering_quality_ui_signal_n1",
+            "assertion": "Infer engineering quality from runtime behavior: interaction logic should be consistent and not duplicated/conflicting across similar components. Fail if behavior appears inconsistent, brittle, or obviously over-engineered with distracting effects hurting usability/performance.",
+            "evidence_required": [
+              "screenshot",
+              "text"
+            ]
+          }
+        ]
+      }
+    ],
+    "execution_groups": [
+      {
+        "group_id": "grp_visual_foundation",
+        "description": "Core visual layout, alignment, color, and typography assessment in one observation flow.",
+        "standard_ids": [
+          "iv_layout_spacing_grid",
+          "iv_visual_alignment_precision",
+          "iv_color_palette_control",
+          "iv_typography_readability"
+        ],
+        "scenario_count": 2
+      },
+      {
+        "group_id": "grp_interaction_dynamics",
+        "description": "Interaction feedback, transition rhythm, and discoverability checks in one action flow.",
+        "standard_ids": [
+          "iv_feedback_latency",
+          "iv_transition_rhythm",
+          "iv_visual_guidance_discoverability"
+        ],
+        "scenario_count": 2
+      },
+      {
+        "group_id": "grp_functionality_resilience",
+        "description": "Functional workflow, lifecycle robustness, error handling, and engineering-quality signals.",
+        "standard_ids": [
+          "iv_workflow_triplet",
+          "iv_state_lifecycle_resilience",
+          "iv_exception_handling",
+          "iv_engineering_quality_ui_signal"
+        ],
+        "scenario_count": 2
+      }
+    ]
+  },
+  "rubric_v2_structured": {
+    "dimensions": [
+      {
+        "dimension_id": "visual_quality",
+        "name": "Visual Quality",
+        "subdimensions": [
+          {
+            "subdimension_id": "layout_spacing",
+            "name": "Layout & Spacing",
+            "rules": [
+              {
+                "rule_id": "vq_spacing_8px_grid",
+                "type": "objective_threshold",
+                "metric": "spacing_multiple",
+                "target": 8,
+                "operator": "multiple_of",
+                "source": "ArtifactsBench",
+                "description": "Element spacing should follow 8px multiples."
+              },
+              {
+                "rule_id": "vq_block_alignment_pixel",
+                "type": "objective_threshold",
+                "metric": "block_misalignment_px",
+                "threshold_minor_max": 2,
+                "threshold_major_min": 3,
+                "source": "Vision2Web",
+                "description": "Minor misalignment <2px; clear dislocation/overlap is low-score."
+              }
+            ]
+          },
+          {
+            "subdimension_id": "color_style",
+            "name": "Color & Style",
+            "rules": [
+              {
+                "rule_id": "vq_primary_color_count",
+                "type": "objective_threshold",
+                "metric": "primary_color_count",
+                "operator": "lte",
+                "target": 3,
+                "source": "ArtifactsBench",
+                "description": "Primary theme colors should not exceed 3."
+              },
+              {
+                "rule_id": "vq_harsh_color_penalty",
+                "type": "subjective_rubric",
+                "metric": "glaring_color_combination",
+                "source": "ArtifactsBench",
+                "description": "Visually harsh color combinations should be heavily penalized."
+              }
+            ]
+          },
+          {
+            "subdimension_id": "typography",
+            "name": "Typography",
+            "rules": [
+              {
+                "rule_id": "vq_body_font_size",
+                "type": "objective_threshold",
+                "metric": "body_font_size_px",
+                "operator": "gte",
+                "target": 14,
+                "source": "ArtifactsBench",
+                "description": "Body text size must be >=14px."
+              },
+              {
+                "rule_id": "vq_line_height",
+                "type": "objective_threshold",
+                "metric": "line_height_ratio",
+                "operator": "gt",
+                "target": 1.5,
+                "source": "ArtifactsBench",
+                "description": "Line-height ratio must be >1.5."
+              },
+              {
+                "rule_id": "vq_typography_prototype_consistency",
+                "type": "subjective_rubric",
+                "metric": "prototype_typography_consistency",
+                "source": "Vision2Web",
+                "description": "Text/font/icon style should match prototype intent consistently."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "dimension_id": "interactive_dynamics",
+        "name": "Interactive Dynamics",
+        "subdimensions": [
+          {
+            "subdimension_id": "feedback_latency",
+            "name": "Feedback Latency",
+            "rules": [
+              {
+                "rule_id": "id_click_feedback_latency",
+                "type": "objective_threshold",
+                "metric": "click_feedback_latency_ms",
+                "operator": "lte",
+                "target": 100,
+                "source": "ArtifactsBench",
+                "description": "Click feedback delay should be <=100ms."
+              },
+              {
+                "rule_id": "id_after_image_penalty",
+                "type": "subjective_rubric",
+                "metric": "visual_after_images",
+                "source": "ArtifactsBench",
+                "description": "Visible after-images/trailing artifacts should be penalized."
+              }
+            ]
+          },
+          {
+            "subdimension_id": "animation_transition",
+            "name": "Animation Rhythm & Transition",
+            "rules": [
+              {
+                "rule_id": "id_transition_duration_range",
+                "type": "objective_range",
+                "metric": "transition_duration_ms",
+                "min": 300,
+                "max": 500,
+                "source": "ArtifactsBench",
+                "description": "Transition duration should be in 300-500ms comfort range."
+              }
+            ]
+          },
+          {
+            "subdimension_id": "visual_guidance",
+            "name": "Visual Guidance & UX",
+            "rules": [
+              {
+                "rule_id": "id_key_action_discoverability",
+                "type": "subjective_rubric",
+                "metric": "key_function_discoverability",
+                "source": "ArtifactsBench",
+                "description": "Key action buttons should be easy to discover."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "dimension_id": "functionality_engineering",
+        "name": "Functionality & Engineering",
+        "subdimensions": [
+          {
+            "subdimension_id": "functional_execution_state",
+            "name": "Functional Execution & State",
+            "rules": [
+              {
+                "rule_id": "fe_workflow_triplet_validation",
+                "type": "process_rule",
+                "metric": "target_action_verification_triplet",
+                "source": "Vision2Web",
+                "description": "Validate flows with <target, action, verification> triplets."
+              },
+              {
+                "rule_id": "fe_lifecycle_completeness",
+                "type": "subjective_rubric",
+                "metric": "lifecycle_state_coverage",
+                "source": "ArtifactsBench",
+                "description": "Evaluate lifecycle robustness (pause/resume/recovery/reconnect when applicable)."
+              }
+            ]
+          },
+          {
+            "subdimension_id": "robustness",
+            "name": "Robustness",
+            "rules": [
+              {
+                "rule_id": "fe_exception_boundary_handling",
+                "type": "subjective_rubric",
+                "metric": "exception_boundary_coverage",
+                "source": "ArtifactsBench",
+                "description": "Boundary/error conditions should have graceful handling."
+              }
+            ]
+          },
+          {
+            "subdimension_id": "engineering_quality",
+            "name": "Engineering Quality & Redundancy",
+            "rules": [
+              {
+                "rule_id": "fe_modular_architecture",
+                "type": "subjective_rubric",
+                "metric": "modular_separation_quality",
+                "source": "ArtifactsBench",
+                "description": "Prefer modular architecture and avoid global state pollution."
+              },
+              {
+                "rule_id": "fe_duplicate_code_ratio",
+                "type": "objective_threshold",
+                "metric": "duplicate_code_ratio",
+                "operator": "lte",
+                "target": 0.3,
+                "source": "ArtifactsBench",
+                "description": "Duplicate code ratio should be <=30%."
+              },
+              {
+                "rule_id": "fe_feature_restraint",
+                "type": "subjective_rubric",
+                "metric": "feature_restraint",
+                "source": "ArtifactsBench",
+                "description": "Penalize unnecessary flashy features that hurt performance or distract from core task."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

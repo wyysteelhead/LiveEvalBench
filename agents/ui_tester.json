@@ -1,0 +1,165 @@
+{
+  "version": "1.0.0",
+  "id": "ui_tester",
+  "name": "UI Tester",
+  "role": "evaluator",
+  "stage": "evaluate",
+  "depends_on": [
+    "build_engineer"
+  ],
+  "description": "Evaluates visual quality and interaction experience of the product, plus query-specific functional behavior.",
+  "system_prompt": "You are a UI tester. Your goal is to evaluate the product's visual quality and interaction experience, and to validate the query-specific functional behavior that the product is supposed to deliver.",
+  "rubric": {
+    "scoring_mode": "pass_fail_na",
+    "dimensions": [
+      {
+        "id": "visual_quality",
+        "name": "Visual Quality",
+        "instruction": "Evaluate whether color harmony, typography, spacing, information hierarchy, and overall visual impression feel cohesive and professional.",
+        "weight": -1,
+        "scoring": {
+          "method": "hybrid",
+          "objective_weight": 0.5,
+          "subjective_weight": 0.5,
+          "checks": [
+            {
+              "id": "rendering_completeness",
+              "name": "Rendering Completeness",
+              "instruction": "The page renders without visible rendering defects \u2014 no broken image placeholders, missing icons, layout collapse, or empty content regions that degrade the visual experience. Use inspect_last_screenshot to verify; do NOT read source code as a substitute for visual evidence."
+            },
+            {
+              "id": "cta_prominence",
+              "name": "CTA Prominence",
+              "instruction": "The primary CTA is visually more prominent than secondary actions."
+            }
+          ],
+          "subcriteria": [
+            {
+              "id": "rendering_integrity",
+              "name": "Rendering Integrity",
+              "instruction": "Whether all media elements (images, icons, backgrounds) load correctly and the page is free of broken placeholders, white/gray rectangles where images should be, collapsed layouts, or other rendering defects. Base this on the screenshot alone \u2014 do not check the source code.",
+              "weight": 1.2
+            },
+            {
+              "id": "color_harmony",
+              "name": "Color Harmony",
+              "instruction": "Whether primary/secondary colors work well with the background and avoid excessive conflict.",
+              "weight": 1.0
+            },
+            {
+              "id": "typography_quality",
+              "name": "Typography Quality",
+              "instruction": "Whether font size, weight, line spacing, and paragraph rhythm feel comfortable.",
+              "weight": 1.0
+            },
+            {
+              "id": "spacing_and_scanability",
+              "name": "Spacing and Scanability",
+              "instruction": "Whether spacing between modules is consistent and users can quickly grasp the most important information.",
+              "weight": 1.0
+            }
+          ],
+          "rating_to_score": {
+            "good": 100,
+            "ok": 70,
+            "poor": 40
+          }
+        }
+      },
+      {
+        "id": "interaction_experience",
+        "name": "Interaction Experience",
+        "instruction": "Evaluate whether buttons, inputs, and clickable regions provide clear interactive cues, state feedback, and an intuitive overall experience.",
+        "weight": -1,
+        "scoring": {
+          "method": "hybrid",
+          "objective_weight": 0.55,
+          "subjective_weight": 0.45,
+          "checks": [
+            {
+              "id": "feedback_clarity",
+              "name": "Feedback Clarity",
+              "instruction": "Actions on interactive elements produce timely, interpretable state-change feedback that guides the user's next step (e.g. button press shows loading/result, form submit confirms success/failure, toggle reflects new state)."
+            },
+            {
+              "id": "interaction_intuitiveness",
+              "name": "Interaction Intuitiveness",
+              "instruction": "Users can tell which elements are interactive through clear visual affordances (cursor change, contrast, shape), and the action path to complete primary tasks feels natural without hidden steps."
+            },
+            {
+              "id": "cognitive_load",
+              "name": "Cognitive Load",
+              "instruction": "The interface can be understood and operated without repeated trial-and-error; layout, labeling, and interaction patterns are consistent and predictable."
+            }
+          ],
+          "subcriteria": [
+            {
+              "id": "feedback_clarity",
+              "name": "Feedback Clarity",
+              "instruction": "Whether state-change feedback after actions is timely, interpretable, and guides next steps.",
+              "weight": 1.0
+            },
+            {
+              "id": "cognitive_load",
+              "name": "Cognitive Load",
+              "instruction": "Whether the user needs repeated trial-and-error before understanding how to operate the interface.",
+              "weight": 0.8
+            },
+            {
+              "id": "interaction_intuitiveness",
+              "name": "Interaction Intuitiveness",
+              "instruction": "Whether users can tell which elements are interactive and whether the action path feels natural.",
+              "weight": 0.9
+            }
+          ],
+          "rating_to_score": {
+            "good": 100,
+            "ok": 70,
+            "poor": 40
+          }
+        }
+      }
+    ]
+  },
+  "allowed_tools": [
+    "navigate",
+    "reload_page",
+    "get_page_context",
+    "get_global_dom_summary",
+    "preview_click_at",
+    "click_element",
+    "click_at",
+    "type_text",
+    "press_key",
+    "press_key_on",
+    "action_sequence",
+    "hover_element",
+    "scroll_by",
+    "scroll_to_element",
+    "inspect_last_screenshot",
+    "read_file",
+    "search_source",
+    "submit_verdict"
+  ],
+  "runtime": {
+    "max_steps": 40,
+    "max_step_seconds": 900,
+    "max_total_seconds": 3600
+  },
+  "output": {
+    "require_evidence": true,
+    "allow_not_applicable": true
+  },
+  "subtask_decomposition_policy": "Decompose along interaction-quality dimensions and observable regions, not per-element micro-checks:\n- For interaction-centric dimensions (`interaction_experience` with [feedback_clarity, interaction_intuitiveness, cognitive_load]), produce **one subtask per check dimension**. Each subtask exercises multiple relevant interactive elements visible in `page_context` to evaluate that dimension holistically. For example, a `feedback_clarity` subtask clicks/submits several controls and judges whether the UI gives timely state-change feedback across all of them.\n- For `visual_quality`, split by rendered region only when `page_context` actually shows multiple distinct top-level regions; otherwise a single subtask is fine. Visual quality must be assessed from the **rendered page** (screenshots), not from source code — declared styles may render incorrectly or produce poor results, so only what actually renders constitutes valid evidence. Subtask task_text and success_criteria should reference observable visual properties (what the user sees), not code-level declarations (what the source declares).\n- Cap the per-dimension subtask count at 5. If more than 5 interactive elements/regions are eligible, pick the 5 most prominent (primary CTA, primary nav, hero action, dominant control surface, footer if functionally distinct).\n- Subtask titles must name the quality dimension and scope, e.g. `\"Feedback clarity across form controls\"`, `\"Interaction intuitiveness of primary navigation\"`. Do not produce subtasks named only after rubric check ids.\n\nQuery-specific main task synthesis (replaces the former `goal_completion` dimension):\n- Each query-specific main task must validate a concrete, query-driven functional behavior that an end user would expect from this implementation \u2014 in particular, whether the core user goal stated in the query can actually be reached and completed. Together, the query-specific tasks must cover the goal-completion testing surface the deleted `goal_completion` dimension used to own (entry-point discoverability, core task completion, no blocking failure), expressed as concrete query-specific behaviors instead of generic checks.\n- Use the user query plus the page context as the source of truth for what behaviors are in scope. Do not invent functionality that the query does not imply.\n- Each task must name a specific, observable behavior (e.g. `\"Add an item to the todo list and confirm it appears\"`), not a generic goal_completion statement.\n- Spread coverage across distinct functional aspects of the query (entry point, primary action, state change, error/empty state, secondary capability mentioned in the query). Do not let two query-specific tasks test the same behavior.\n- Each task must be executable end-to-end by this agent with its allowed browser tools, and must end with what to observe/verify.",
+  "enabled": true,
+  "tags": [
+    "ui",
+    "visual",
+    "interaction"
+  ],
+  "scoring": {
+    "max_score": 45,
+    "task_aggregation_mode": "strict"
+  },
+  "free_task_count": 5
+}

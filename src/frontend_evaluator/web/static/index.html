@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Evaluator Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://unpkg.com/cytoscape@3/dist/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+    <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+        .task-row:hover { background: #f8fafc; }
+        .fade-in { animation: fadeIn 0.15s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900" x-data="dashboard()">
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+            </div>
+            <span class="font-semibold text-slate-800 text-sm tracking-tight">Frontend Evaluator</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                <span x-text="stats.running"></span> running
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium">
+                <span x-text="stats.passed"></span> passed
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">
+                <span x-text="stats.failed_verdict"></span> failed
+            </span>
+        </div>
+    </div>
+</header>
+
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
+<main class="max-w-7xl mx-auto px-6 py-6">
+
+    <!-- Stats cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total</div>
+            <div class="mt-1 text-3xl font-bold text-slate-800" x-text="stats.total"></div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Pending</div>
+            <div class="mt-1 text-3xl font-bold text-amber-500" x-text="stats.pending"></div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Completed</div>
+            <div class="mt-1 text-3xl font-bold text-emerald-600" x-text="stats.completed"></div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Errors</div>
+            <div class="mt-1 text-3xl font-bold text-red-500" x-text="stats.failed"></div>
+        </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 mb-4 flex items-center gap-3 flex-wrap">
+        <!-- Status pills -->
+        <div class="flex gap-1 flex-wrap">
+            <template x-for="f in [{v:'all',label:'All'},{v:'running',label:'Running'},{v:'passed',label:'Passed'},{v:'failed',label:'Failed'},{v:'error',label:'Error'}]" :key="f.v">
+                <button @click="filterStatus = f.v"
+                        class="px-3 py-1 rounded-full text-xs font-medium transition-all"
+                        :class="filterStatus === f.v
+                            ? (f.v==='passed' ? 'bg-emerald-600 text-white shadow-sm' : f.v==='failed' ? 'bg-red-600 text-white shadow-sm' : f.v==='error' ? 'bg-slate-600 text-white shadow-sm' : f.v==='running' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-800 text-white shadow-sm')
+                            : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-100'"
+                        x-text="f.label + (f.v !== 'all' ? ' (' + taskCount(f.v) + ')' : ' (' + tasks.length + ')')">
+                </button>
+            </template>
+        </div>
+        <div class="w-px h-5 bg-slate-200 hidden sm:block"></div>
+        <!-- Numeric filters -->
+        <div class="flex items-center gap-1.5">
+            <span class="text-xs text-slate-400">Score ≥</span>
+            <input type="number" x-model="filterMinScore" min="0" max="100" placeholder="—"
+                   class="w-14 px-2 py-1 text-xs border border-slate-200 rounded-lg text-center focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 bg-slate-50">
+            <span class="text-xs text-slate-400">%</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <span class="text-xs text-slate-400">Duration ≤</span>
+            <input type="number" x-model="filterMaxDuration" min="0" placeholder="—"
+                   class="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg text-center focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 bg-slate-50">
+            <span class="text-xs text-slate-400">s</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <span class="text-xs text-slate-400">Interactions</span>
+            <input type="number" x-model="filterMinInteractions" min="0" placeholder="min"
+                   class="w-14 px-2 py-1 text-xs border border-slate-200 rounded-lg text-center focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 bg-slate-50">
+            <span class="text-xs text-slate-300">–</span>
+            <input type="number" x-model="filterMaxInteractions" min="0" placeholder="max"
+                   class="w-14 px-2 py-1 text-xs border border-slate-200 rounded-lg text-center focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 bg-slate-50">
+        </div>
+        <select x-model="sortBy" class="ml-auto px-3 py-1 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-600 focus:outline-none focus:border-indigo-400 cursor-pointer">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="score_desc">Score ↓</option>
+            <option value="score_asc">Score ↑</option>
+            <option value="duration_desc">Duration ↓</option>
+            <option value="duration_asc">Duration ↑</option>
+            <option value="interaction_desc">Interactions ↓</option>
+            <option value="interaction_asc">Interactions ↑</option>
+        </select>
+    </div>
+
+    <!-- Task list -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Evaluation Tasks</h2>
+            <span class="text-xs text-slate-400" x-text="filteredTasks.length + ' / ' + tasks.length + ' tasks'"></span>
+        </div>
+        <div class="divide-y divide-slate-100">
+            <template x-for="task in filteredTasks" :key="task.id">
+                <div class="task-row px-5 py-3.5 cursor-pointer transition-colors" @click="selectTask(task)">
+                    <!-- Row 1: badges + filename + metrics -->
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <!-- Status badge -->
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                              :class="{
+                                  'bg-amber-50 text-amber-700 border border-amber-200': task.status === 'pending',
+                                  'bg-blue-50 text-blue-700 border border-blue-200': task.status === 'running',
+                                  'bg-emerald-50 text-emerald-700 border border-emerald-200': task.status === 'completed' && task.verdict === true,
+                                  'bg-red-50 text-red-700 border border-red-200': task.status === 'completed' && task.verdict === false,
+                                  'bg-slate-100 text-slate-600 border border-slate-200': task.status === 'failed'
+                              }">
+                            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                  :class="{
+                                      'bg-amber-400': task.status === 'pending',
+                                      'bg-blue-500 animate-pulse': task.status === 'running',
+                                      'bg-emerald-500': task.status === 'completed' && task.verdict === true,
+                                      'bg-red-500': task.status === 'completed' && task.verdict === false,
+                                      'bg-slate-400': task.status === 'failed'
+                                  }"></span>
+                            <span x-text="task.status === 'completed' ? (task.verdict ? 'PASSED' : 'FAILED') : (task.status === 'failed' ? 'ERROR' : task.status.toUpperCase())"></span>
+                        </span>
+                        <!-- Filename -->
+                        <span class="text-xs font-mono font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded flex-shrink-0"
+                              x-text="task.markdown_file.split('/').pop()"></span>
+                        <!-- Score -->
+                        <span x-show="task.overall_score !== null && task.overall_score !== undefined"
+                              class="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                              :class="{
+                                  'bg-emerald-50 text-emerald-700': task.overall_score >= 0.7,
+                                  'bg-amber-50 text-amber-700': task.overall_score >= 0.4 && task.overall_score < 0.7,
+                                  'bg-red-50 text-red-700': task.overall_score < 0.4
+                              }"
+                              x-text="task.overall_score != null ? (task.overall_score * 100).toFixed(1) + '%' : ''">
+                        </span>
+                        <!-- Interaction count -->
+                        <span x-show="task.interaction_count !== null && task.interaction_count !== undefined"
+                              class="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-100 flex-shrink-0"
+                              x-text="task.interaction_count + ' interactions'">
+                        </span>
+                        <!-- Duration -->
+                        <template x-if="task.duration_seconds">
+                            <span class="text-xs text-slate-400 flex-shrink-0" x-text="formatDuration(task.duration_seconds)"></span>
+                        </template>
+                    </div>
+                    <!-- Row 2: query text (expandable) -->
+                    <div class="mt-1.5 ml-0.5">
+                        <p class="text-sm text-slate-600 leading-snug"
+                           :class="expandedTaskQuery[task.id] ? '' : 'line-clamp-2'"
+                           x-text="task.query"></p>
+                        <button x-show="task.query && task.query.length > 120"
+                                @click.stop="expandedTaskQuery = {...expandedTaskQuery, [task.id]: !expandedTaskQuery[task.id]}"
+                                class="mt-0.5 text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+                            <span x-text="expandedTaskQuery[task.id] ? '▲ less' : '▼ more'"></span>
+                        </button>
+                    </div>
+                    <!-- Row 3: error -->
+                    <template x-if="task.error">
+                        <p class="mt-1 text-xs text-red-500 font-mono bg-red-50 px-2 py-1 rounded mt-1.5" x-text="task.error"></p>
+                    </template>
+                </div>
+            </template>
+            <template x-if="filteredTasks.length === 0">
+                <div class="px-6 py-16 text-center">
+                    <div class="text-slate-300 text-4xl mb-3">◎</div>
+                    <p class="text-sm text-slate-400">No tasks match the current filters</p>
+                </div>
+            </template>
+        </div>
+    </div>
+</main>
+
+<!-- ── Detail overlay ─────────────────────────────────────────────────────── -->
+<div x-show="selectedTask" x-cloak
+     class="fixed inset-0 z-50 flex flex-col bg-slate-50"
+     @keydown.escape.window="selectedTask = null">
+    <template x-if="selectedTask">
+        <div class="flex flex-col h-full fade-in">
+
+            <!-- Overlay header -->
+            <div class="bg-white border-b border-slate-200 shadow-sm px-6 py-3 flex items-center gap-3 flex-shrink-0">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                    <!-- Filename -->
+                    <span class="font-mono text-sm font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded flex-shrink-0"
+                          x-text="selectedTask.markdown_file.split('/').pop()"></span>
+                    <!-- Status -->
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                          :class="{
+                              'bg-emerald-100 text-emerald-700': selectedTask.verdict === true,
+                              'bg-red-100 text-red-700': selectedTask.status === 'completed' && selectedTask.verdict === false,
+                              'bg-slate-100 text-slate-600': selectedTask.status === 'failed',
+                              'bg-blue-100 text-blue-700': selectedTask.status === 'running',
+                              'bg-amber-100 text-amber-700': selectedTask.status === 'pending'
+                          }"
+                          x-text="selectedTask.status === 'completed' ? (selectedTask.verdict ? 'PASSED' : 'FAILED') : (selectedTask.status === 'failed' ? 'ERROR' : selectedTask.status.toUpperCase())">
+                    </span>
+                    <!-- Score -->
+                    <template x-if="selectedTaskPlannerReport">
+                        <span class="text-sm font-bold flex-shrink-0"
+                              :class="{
+                                  'text-emerald-600': selectedTaskPlannerReport.overall_score >= 0.7,
+                                  'text-amber-600': selectedTaskPlannerReport.overall_score >= 0.4 && selectedTaskPlannerReport.overall_score < 0.7,
+                                  'text-red-600': selectedTaskPlannerReport.overall_score < 0.4
+                              }"
+                              x-text="'Score: ' + (selectedTaskPlannerReport.overall_score * 100).toFixed(1) + '%'">
+                        </span>
+                    </template>
+                    <!-- Interaction count -->
+                    <template x-if="selectedTask.interaction_count !== null && selectedTask.interaction_count !== undefined">
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-100 flex-shrink-0"
+                              x-text="selectedTask.interaction_count + ' interactions'"></span>
+                    </template>
+                </div>
+                <button @click="selectedTask = null"
+                        class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors rounded-lg border border-slate-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                    Back
+                </button>
+            </div>
+
+            <!-- Query display bar -->
+            <div class="bg-indigo-50 border-b border-indigo-100 px-6 py-2.5 flex-shrink-0">
+                <div class="flex items-start gap-2">
+                    <span class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mt-0.5 flex-shrink-0">Query</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-indigo-900 leading-snug"
+                           :class="queryExpanded ? '' : 'line-clamp-2'"
+                           x-text="selectedTask.query"></p>
+                        <button x-show="selectedTask.query && selectedTask.query.length > 100"
+                                @click="queryExpanded = !queryExpanded"
+                                class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mt-0.5">
+                            <span x-text="queryExpanded ? '▲ collapse' : '▼ expand'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase tabs (planner report only) -->
+            <template x-if="selectedTaskPlannerReport">
+                <div class="bg-white border-b border-slate-200 px-6 flex gap-0 flex-shrink-0 overflow-x-auto">
+                    <template x-for="phase in phases" :key="phase.key">
+                        <button
+                            @click="activePhase = phase.key; if (phase.key === 'interaction_visual') renderBehaviorGraphs()"
+                            class="px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
+                            :class="activePhase === phase.key
+                                ? 'border-indigo-500 text-indigo-600'
+                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'">
+                            <span x-text="phase.label"></span>
+                            <template x-if="getPhaseScore(phase.key)">
+                                <span class="ml-2 text-xs px-1.5 py-0.5 rounded-full font-semibold"
+                                      :class="getPhaseScore(phase.key).score >= 1.0
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : getPhaseScore(phase.key).score >= 0.5
+                                              ? 'bg-amber-100 text-amber-700'
+                                              : 'bg-red-100 text-red-700'"
+                                      x-text="(getPhaseScore(phase.key).score * 100).toFixed(0) + '/100'">
+                                </span>
+                            </template>
+                        </button>
+                    </template>
+                </div>
+            </template>
+
+            <!-- Content area -->
+            <div class="flex-1 overflow-y-auto scrollbar-thin p-6">
+
+                <!-- No planner report: events timeline -->
+                <template x-if="!selectedTaskPlannerReport">
+                    <div class="max-w-3xl mx-auto">
+                        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Events Timeline</h3>
+                        <div class="space-y-2">
+                            <template x-for="(event, index) in selectedTaskEvents" :key="index">
+                                <div class="bg-white rounded-lg border border-slate-200 p-3">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="w-2 h-2 rounded-full flex-shrink-0"
+                                             :class="{
+                                                 'bg-blue-500': event.event_type === 'tool_executing',
+                                                 'bg-emerald-500': event.event_type === 'tool_completed',
+                                                 'bg-red-500': event.event_type === 'tool_failed',
+                                                 'bg-violet-500': event.event_type === 'verdict_submitted'
+                                             }"></span>
+                                        <span class="text-sm font-medium text-slate-800" x-text="event.event_type"></span>
+                                        <span class="text-xs text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded" x-text="'iter ' + event.iteration"></span>
+                                        <template x-if="event.has_screenshot">
+                                            <button class="text-xs px-2 py-0.5 rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors"
+                                                    @click="toggleEventScreenshot(event)">
+                                                <span x-text="eventScreenshotExpanded[event.event_index] ? 'Hide screenshot' : 'Show screenshot'"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                    <!-- Event data: expandable -->
+                                    <div class="mt-2">
+                                        <pre class="text-xs text-slate-600 bg-slate-50 border border-slate-100 p-2.5 rounded-lg overflow-x-auto scrollbar-thin leading-relaxed"
+                                             :class="expandedEventData[event.event_index] ? '' : 'max-h-24 overflow-hidden'"
+                                             x-text="JSON.stringify(event.data, null, 2)"></pre>
+                                        <button @click="expandedEventData = {...expandedEventData, [event.event_index]: !expandedEventData[event.event_index]}"
+                                                class="mt-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+                                            <span x-text="expandedEventData[event.event_index] ? '▲ collapse' : '▼ expand data'"></span>
+                                        </button>
+                                    </div>
+                                    <template x-if="event.has_screenshot && eventScreenshotExpanded[event.event_index]">
+                                        <div class="mt-2 p-2 border border-blue-100 rounded-lg bg-blue-50">
+                                            <template x-if="eventScreenshotLoading[event.event_index]">
+                                                <p class="text-xs text-blue-600">Loading screenshot...</p>
+                                            </template>
+                                            <template x-if="eventScreenshotError[event.event_index]">
+                                                <p class="text-xs text-red-500" x-text="eventScreenshotError[event.event_index]"></p>
+                                            </template>
+                                            <template x-if="eventScreenshotCache[event.event_index]">
+                                                <img class="max-h-80 w-auto rounded border border-blue-200"
+                                                     :src="'data:image/png;base64,' + eventScreenshotCache[event.event_index]"
+                                                     alt="Event screenshot">
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                            <template x-if="selectedTaskEvents.length === 0">
+                                <p class="text-sm text-slate-400 text-center py-8">No events recorded</p>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Planner report phases -->
+                <template x-if="selectedTaskPlannerReport">
+                    <div class="max-w-4xl mx-auto space-y-4">
+
+                        <!-- Build error -->
+                        <template x-if="selectedTaskPlannerReport.build_error">
+                            <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                                <div class="text-sm font-semibold text-red-700 mb-2">Build Failed</div>
+                                <pre class="text-xs text-red-600 whitespace-pre-wrap font-mono leading-relaxed"
+                                     x-text="selectedTaskPlannerReport.build_error"></pre>
+                            </div>
+                        </template>
+
+                        <!-- Category scores -->
+                        <template x-if="selectedTaskPlannerReport.category_scores && Object.keys(selectedTaskPlannerReport.category_scores).length > 0">
+                            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Score by Category</div>
+                                    <div class="text-sm font-bold"
+                                         :class="{
+                                             'text-emerald-600': selectedTaskPlannerReport.overall_score >= 0.7,
+                                             'text-amber-600': selectedTaskPlannerReport.overall_score >= 0.4 && selectedTaskPlannerReport.overall_score < 0.7,
+                                             'text-red-600': selectedTaskPlannerReport.overall_score < 0.4
+                                         }"
+                                         x-text="'Overall score: ' + (selectedTaskPlannerReport.overall_score * 100).toFixed(1) + '/100'">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                    <template x-for="[cat, cs] in Object.entries(selectedTaskPlannerReport.category_scores)" :key="cat">
+                                        <div class="rounded-lg border p-3"
+                                             :class="{
+                                                 'border-emerald-200 bg-emerald-50': cs.score >= 0.7,
+                                                 'border-amber-200 bg-amber-50': cs.score >= 0.4 && cs.score < 0.7,
+                                                 'border-red-200 bg-red-50': cs.score < 0.4
+                                             }">
+                                            <div class="text-xs font-mono font-medium text-slate-600 truncate" x-text="cat"></div>
+                                            <div class="mt-0.5 text-xl font-bold leading-none"
+                                                 :class="{
+                                                     'text-emerald-700': cs.score >= 0.7,
+                                                     'text-amber-700': cs.score >= 0.4 && cs.score < 0.7,
+                                                     'text-red-700': cs.score < 0.4
+                                                 }"
+                                                    x-text="(cs.score * 100).toFixed(0) + '/100'">
+                                            </div>
+                                                <div class="text-xs text-slate-500 mt-0.5" x-text="'score ' + (cs.score * 100).toFixed(0) + '/100'"></div>
+                                            <div class="mt-2 h-1 rounded-full bg-white/60">
+                                                <div class="h-1 rounded-full transition-all"
+                                                     :class="{
+                                                         'bg-emerald-500': cs.score >= 0.7,
+                                                         'bg-amber-500': cs.score >= 0.4 && cs.score < 0.7,
+                                                         'bg-red-500': cs.score < 0.4
+                                                     }"
+                                                     :style="'width: ' + (cs.score * 100) + '%'">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- SOURCE phase -->
+                        <template x-if="activePhase === 'source'">
+                            <div class="space-y-2">
+                                <template x-for="check in selectedTaskPlannerReport.source_checks" :key="check.check_id">
+                                    <div class="bg-white rounded-xl border p-4 shadow-sm"
+                                         :class="check.passed ? 'border-emerald-200' : 'border-red-200'">
+                                        <div class="flex items-start gap-3">
+                                            <span class="text-lg font-bold flex-shrink-0 leading-none mt-0.5"
+                                                  :class="check.passed ? 'text-emerald-500' : 'text-red-500'"
+                                                  x-text="check.passed ? '✓' : '✗'"></span>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <span class="text-sm font-semibold text-slate-800" x-text="check.check_id"></span>
+                                                    <template x-if="check.category">
+                                                        <span class="text-xs px-1.5 py-0 rounded bg-indigo-50 text-indigo-600 font-mono" x-text="check.category"></span>
+                                                    </template>
+                                                </div>
+                                                <div class="mt-1 text-sm text-slate-600 leading-relaxed" x-text="check.detail"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="selectedTaskPlannerReport.source_checks.length === 0">
+                                    <p class="text-sm text-slate-400 text-center py-8">No source checks</p>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- DOM phase -->
+                        <template x-if="activePhase === 'dom'">
+                            <div class="space-y-2">
+                                <template x-for="check in selectedTaskPlannerReport.dom_checks" :key="check.check_id">
+                                    <div class="bg-white rounded-xl border p-4 shadow-sm"
+                                         :class="check.passed ? 'border-emerald-200' : 'border-red-200'">
+                                        <div class="flex items-start gap-3">
+                                            <span class="text-lg font-bold flex-shrink-0 leading-none mt-0.5"
+                                                  :class="check.passed ? 'text-emerald-500' : 'text-red-500'"
+                                                  x-text="check.passed ? '✓' : '✗'"></span>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <span class="text-sm font-semibold text-slate-800" x-text="check.check_id"></span>
+                                                    <template x-if="check.category">
+                                                        <span class="text-xs px-1.5 py-0 rounded bg-indigo-50 text-indigo-600 font-mono" x-text="check.category"></span>
+                                                    </template>
+                                                </div>
+                                                <div class="mt-1 text-sm text-slate-600 leading-relaxed" x-text="check.detail"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="selectedTaskPlannerReport.dom_checks.length === 0">
+                                    <p class="text-sm text-slate-400 text-center py-8">No DOM checks</p>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- INTERACTION + VISUAL phase -->
+                        <template x-if="activePhase === 'interaction_visual'">
+                            <div class="space-y-3">
+
+                                <!-- Task Score -->
+                                <template x-if="selectedTaskPlannerReport.task_completion_score != null">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center justify-between">
+                                        <div>
+                                            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Task Score</div>
+                                            <div class="text-xs text-slate-500 mt-0.5">Displayed on a 0-100 scale.</div>
+                                        </div>
+                                        <div class="text-2xl font-bold"
+                                             :class="{
+                                                 'text-emerald-600': selectedTaskPlannerReport.task_completion_score >= 0.7,
+                                                 'text-amber-600': selectedTaskPlannerReport.task_completion_score >= 0.4 && selectedTaskPlannerReport.task_completion_score < 0.7,
+                                                 'text-red-600': selectedTaskPlannerReport.task_completion_score < 0.4
+                                             }"
+                                             x-text="(selectedTaskPlannerReport.task_completion_score * 100).toFixed(0) + '/100'">
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Planned Tasks -->
+                                <template x-if="selectedTaskPlannerReport.planned_tasks && selectedTaskPlannerReport.planned_tasks.length > 0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                                            Planned Tasks
+                                            <span class="ml-2 text-slate-300 font-normal normal-case" x-text="'(' + selectedTaskPlannerReport.planned_tasks.length + ' tasks)'"></span>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <template x-for="pt in selectedTaskPlannerReport.planned_tasks" :key="pt.task_id">
+                                                <div class="rounded-lg border border-slate-100 px-3 py-2.5 hover:bg-slate-50 cursor-pointer"
+                                                     @click="expandedPlannedTask = {...expandedPlannedTask, [pt.task_id]: !expandedPlannedTask[pt.task_id]}">
+                                                    <div class="flex items-start gap-2">
+                                                        <div class="flex-1 min-w-0">
+                                                            <div class="flex items-center gap-2 flex-wrap">
+                                                                <span class="text-sm font-medium text-slate-800" x-text="pt.title || pt.task_id"></span>
+                                                                <span class="text-xs px-1.5 py-0 rounded font-medium"
+                                                                      :class="{
+                                                                          'bg-blue-50 text-blue-700': pt.task_type === 'functional_core',
+                                                                          'bg-violet-50 text-violet-700': pt.task_type === 'functional_edge',
+                                                                          'bg-amber-50 text-amber-700': pt.task_type === 'rubric_gap_fill'
+                                                                      }"
+                                                                      x-text="pt.task_type"></span>
+                                                                <span class="text-xs px-1.5 py-0 rounded bg-slate-100 text-slate-500 font-mono"
+                                                                      x-text="pt.generated_from === 'round1_functional' ? 'R1' : 'R2'"></span>
+                                                            </div>
+                                                            <div class="text-xs text-slate-500 mt-0.5 leading-relaxed"
+                                                                 :class="expandedPlannedTask[pt.task_id] ? '' : 'line-clamp-2'"
+                                                                 x-text="pt.task_text"></div>
+                                                        </div>
+                                                        <svg class="w-4 h-4 text-slate-300 flex-shrink-0 mt-0.5 transition-transform"
+                                                             :class="expandedPlannedTask[pt.task_id] ? 'rotate-180' : ''"
+                                                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                                        </svg>
+                                                    </div>
+                                                    <template x-if="expandedPlannedTask[pt.task_id]">
+                                                        <div class="mt-2 pt-2 border-t border-slate-100 space-y-1.5 text-xs text-slate-500">
+                                                            <template x-if="pt.source_requirement_texts && pt.source_requirement_texts.length > 0">
+                                                                <div><span class="font-medium text-slate-600">Requirements: </span><span x-text="pt.source_requirement_texts.join('; ')"></span></div>
+                                                            </template>
+                                                            <template x-if="pt.covers_standard_ids && pt.covers_standard_ids.length > 0">
+                                                                <div><span class="font-medium text-slate-600">Covers: </span>
+                                                                    <template x-for="sid in pt.covers_standard_ids" :key="sid">
+                                                                        <span class="inline-block mr-1 px-1.5 py-0 rounded bg-indigo-50 text-indigo-600 font-mono" x-text="sid"></span>
+                                                                    </template>
+                                                                </div>
+                                                            </template>
+                                                            <template x-if="pt.expected_signals && pt.expected_signals.length > 0">
+                                                                <div><span class="font-medium text-slate-600">Expected: </span><span x-text="pt.expected_signals.join('; ')"></span></div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Task Results -->
+                                <template x-if="selectedTaskPlannerReport.task_results && selectedTaskPlannerReport.task_results.length > 0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Task Results</div>
+                                        <div class="space-y-2">
+                                            <template x-for="tr in selectedTaskPlannerReport.task_results" :key="tr.task_id">
+                                                <div class="rounded-lg border px-3 py-2.5"
+                                                     :class="{
+                                                         'border-emerald-200 bg-emerald-50': tr.task_verdict === 'passed',
+                                                         'border-red-200 bg-red-50': tr.task_verdict === 'failed',
+                                                         'border-slate-200 bg-slate-50': tr.task_verdict === 'not_applicable'
+                                                     }">
+                                                    <div class="flex items-start justify-between gap-3">
+                                                        <div class="flex-1 min-w-0">
+                                                            <div class="flex items-center gap-2 flex-wrap">
+                                                                <span class="text-sm font-medium text-slate-800" x-text="tr.title || tr.task_id"></span>
+                                                                <span class="text-xs px-1.5 py-0 rounded font-medium"
+                                                                      :class="{
+                                                                          'bg-blue-50 text-blue-700': tr.task_type === 'functional_core',
+                                                                          'bg-violet-50 text-violet-700': tr.task_type === 'functional_edge',
+                                                                          'bg-amber-50 text-amber-700': tr.task_type === 'rubric_gap_fill'
+                                                                      }"
+                                                                      x-text="tr.task_type"></span>
+                                                            </div>
+                                                            <div class="text-xs text-slate-600 mt-0.5 leading-relaxed" x-text="tr.summary_reason || '—'"></div>
+                                                        </div>
+                                                        <div class="text-right flex-shrink-0">
+                                                            <div class="text-xs font-mono text-slate-500" x-text="tr.task_score != null ? (tr.task_score * 100).toFixed(0) + '%' : 'N/A'"></div>
+                                                            <div class="text-xs px-2 py-0.5 rounded-full mt-1 font-semibold"
+                                                                 :class="{
+                                                                     'bg-emerald-100 text-emerald-700': tr.task_verdict === 'passed',
+                                                                     'bg-red-100 text-red-700': tr.task_verdict === 'failed',
+                                                                     'bg-slate-100 text-slate-500': tr.task_verdict === 'not_applicable'
+                                                                 }"
+                                                                 x-text="tr.task_verdict === 'passed' ? 'PASSED' : (tr.task_verdict === 'failed' ? 'FAILED' : 'N/A')">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Rubric final scores -->
+                                <template x-if="selectedTaskPlannerReport.interaction_visual_standard_scores && Object.keys(selectedTaskPlannerReport.interaction_visual_standard_scores).length > 0">
+                                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Rubric Final Scores</div>
+                                        <div class="space-y-2">
+                                            <template x-for="(row, sid) in selectedTaskPlannerReport.interaction_visual_standard_scores" :key="sid">
+                                                <div class="flex items-start justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2.5 hover:bg-slate-50">
+                                                    <div class="min-w-0 flex-1">
+                                                        <div class="text-sm font-medium text-slate-800" x-text="sid"></div>
+                                                        <div class="text-xs text-slate-500 mt-0.5 leading-relaxed" x-text="row.summary_reason || ''"></div>
+                                                    </div>
+                                                    <div class="text-right flex-shrink-0">
+                                                        <div class="text-xs font-mono text-slate-500" x-text="(row.final_score == null ? 'N/A' : row.final_score.toFixed(1) + '/100')"></div>
+                                                        <div class="text-xs px-2 py-0.5 rounded-full mt-1 font-medium"
+                                                             :class="{
+                                                                'bg-emerald-100 text-emerald-700': row.final_rating === 'good',
+                                                                'bg-amber-100 text-amber-700': row.final_rating === 'ok',
+                                                                'bg-red-100 text-red-700': row.final_rating === 'poor',
+                                                                'bg-slate-100 text-slate-500': row.final_rating === 'not_applicable'
+                                                             }"
+                                                             x-text="row.final_rating || 'n/a'">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- Edit toolbar -->
+                                <div class="flex items-center justify-between">
+                                    <template x-if="!editingQueries">
+                                        <button @click="startEditingQueries()"
+                                                class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors shadow-sm">
+                                            Edit Queries
+                                        </button>
+                                    </template>
+                                    <template x-if="editingQueries">
+                                        <div class="flex items-center gap-2">
+                                            <button @click="saveEditedQueries()" :disabled="querySaveStatus === 'saving'"
+                                                    class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm">
+                                                <span x-text="querySaveStatus === 'saving' ? 'Saving…' : 'Save Changes'"></span>
+                                            </button>
+                                            <button @click="cancelEditingQueries()"
+                                                    class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 transition-colors">
+                                                Cancel
+                                            </button>
+                                            <span x-show="querySaveStatus === 'saved'" class="text-xs text-emerald-600 font-medium">Saved.</span>
+                                            <span x-show="querySaveStatus === 'error'" class="text-xs text-red-500">Save failed.</span>
+                                        </div>
+                                    </template>
+                                    <template x-if="querySaveStatus === 'saved' && !editingQueries">
+                                        <div class="text-xs text-slate-500 font-mono bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+                                            python scripts/run_planner.py --rerun-task <span class="text-indigo-600" x-text="selectedTask.id"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <!-- Edit mode -->
+                                <template x-if="editingQueries">
+                                    <div class="space-y-2">
+                                        <template x-for="(q, i) in editedQueries" :key="i">
+                                            <div class="bg-white rounded-xl border border-slate-200 p-3 flex gap-3 items-start shadow-sm">
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-center gap-2 mb-1.5">
+                                                        <span class="text-xs font-mono px-1.5 py-0 rounded bg-violet-50 text-violet-600" x-text="q.query_id"></span>
+                                                        <span class="text-xs px-1.5 py-0 rounded bg-indigo-50 text-indigo-600 font-mono" x-text="q.category"></span>
+                                                    </div>
+                                                    <textarea x-model="editedQueries[i].query_text" rows="3"
+                                                              class="w-full text-sm text-slate-800 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 resize-y bg-slate-50"></textarea>
+                                                </div>
+                                                <button @click="editedQueries.splice(i, 1)"
+                                                        class="flex-shrink-0 mt-1 text-slate-300 hover:text-red-500 transition-colors text-xl leading-none" title="Delete">×</button>
+                                            </div>
+                                        </template>
+                                        <template x-if="editedQueries.length === 0">
+                                            <p class="text-sm text-slate-400 text-center py-4">All queries deleted.</p>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <!-- Read mode: behavior check cards -->
+                                <template x-if="!editingQueries">
+                                    <div class="space-y-2">
+                                        <template x-for="(group, gi) in getBehaviorGroups()" :key="group.group_id + '-' + gi">
+                                            <div class="bg-white rounded-xl border shadow-sm"
+                                                 :class="{
+                                                     'border-emerald-200': group.summary === 'passed',
+                                                     'border-red-200':     group.summary === 'failed',
+                                                     'border-slate-200':   group.summary === 'not_applicable'
+                                                 }">
+                                                <!-- Card header -->
+                                                <div class="flex items-start gap-3 p-4 cursor-pointer select-none"
+                                                     @click="toggleBehaviorCard(group.group_id, group)">
+                                                    <span class="text-base font-bold flex-shrink-0 leading-none mt-0.5"
+                                                          :class="{
+                                                              'text-emerald-500': group.summary === 'passed',
+                                                              'text-red-500':     group.summary === 'failed',
+                                                              'text-slate-300':   group.summary === 'not_applicable'
+                                                          }"
+                                                          x-text="group.summary === 'passed' ? '✓' : (group.summary === 'failed' ? '✗' : '—')">
+                                                    </span>
+                                                    <div class="flex-1 min-w-0">
+                                                        <!-- Query text: full, wrapping -->
+                                                        <div class="text-sm font-medium text-slate-800 leading-snug" x-text="group.query_text"></div>
+                                                        <div class="mt-1 flex items-center gap-2 flex-wrap">
+                                                            <span class="text-xs text-slate-400"
+                                                                  x-text="(group.steps && group.steps.length ? group.steps.length + ' steps' : 'no steps') + ' · ' + (group.iterations || 0) + ' iters · ' + group.checks.length + ' standards'">
+                                                            </span>
+                                                            <template x-if="group.group_id">
+                                                                <span class="text-xs px-1.5 py-0 rounded bg-violet-50 text-violet-600 font-mono" x-text="group.execution_group_id"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                    <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-semibold"
+                                                          :class="{
+                                                              'bg-emerald-100 text-emerald-700': group.summary === 'passed',
+                                                              'bg-red-100 text-red-700':         group.summary === 'failed',
+                                                              'bg-slate-100 text-slate-500':     group.summary === 'not_applicable'
+                                                          }"
+                                                          x-text="group.summary === 'passed' ? 'PASSED' : (group.summary === 'failed' ? 'FAILED' : 'N/A')">
+                                                    </span>
+                                                    <svg class="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200 mt-0.5"
+                                                         :class="expandedBehavior[group.group_id] ? 'rotate-180' : ''"
+                                                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                                    </svg>
+                                                </div>
+
+                                                <!-- Expanded detail -->
+                                                <template x-if="expandedBehavior[group.group_id]">
+                                                    <div class="border-t border-slate-100 p-4 space-y-4">
+                                                        <!-- Standards -->
+                                                        <div>
+                                                            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Standards</div>
+                                                            <div class="space-y-2">
+                                                                <template x-for="(check, ci) in group.checks" :key="check.query_id + '-' + ci">
+                                                                    <div class="rounded-lg border p-3"
+                                                                         :class="{
+                                                                             'border-emerald-200 bg-emerald-50': getBehaviorVerdictType(check) === 'passed',
+                                                                             'border-red-200 bg-red-50':         getBehaviorVerdictType(check) === 'failed',
+                                                                             'border-slate-200 bg-slate-50':     getBehaviorVerdictType(check) === 'not_applicable'
+                                                                         }">
+                                                                        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                                                            <span class="text-xs font-mono px-1.5 py-0 rounded bg-white border border-slate-200" x-text="check.query_id"></span>
+                                                                            <span class="text-xs px-1.5 py-0 rounded bg-indigo-50 text-indigo-600 font-mono" x-text="check.category"></span>
+                                                                            <span class="text-xs px-1.5 py-0 rounded font-medium"
+                                                                                  :class="{
+                                                                                      'bg-emerald-100 text-emerald-700': getBehaviorVerdictType(check) === 'passed',
+                                                                                      'bg-red-100 text-red-700':         getBehaviorVerdictType(check) === 'failed',
+                                                                                      'bg-slate-200 text-slate-600':     getBehaviorVerdictType(check) === 'not_applicable'
+                                                                                  }"
+                                                                                  x-text="getBehaviorVerdictType(check)">
+                                                                            </span>
+                                                                        </div>
+                                                                        <!-- Reason: full text, no truncation -->
+                                                                        <div class="text-sm text-slate-700 leading-relaxed" x-text="(check.verdict && check.verdict.reason) || '—'"></div>
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Steps table -->
+                                                        <template x-if="group.steps && group.steps.length > 0">
+                                                            <div>
+                                                                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Steps</div>
+                                                                <div class="overflow-x-auto rounded-lg border border-slate-100">
+                                                                    <table class="w-full text-xs">
+                                                                        <thead>
+                                                                            <tr class="bg-slate-50 text-slate-500 border-b border-slate-100">
+                                                                                <th class="px-3 py-2 text-left font-medium w-8">#</th>
+                                                                                <th class="px-3 py-2 text-left font-medium">Tool</th>
+                                                                                <th class="px-3 py-2 text-left font-medium">Args</th>
+                                                                                <th class="px-3 py-2 text-left font-medium">Result</th>
+                                                                                <th class="px-3 py-2 text-center font-medium w-8">OK</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <template x-for="(step, si) in group.steps" :key="si">
+                                                                            <tbody>
+                                                                            <tr class="border-t border-slate-50 hover:bg-slate-50 cursor-pointer"
+                                                                                @click="expandedStepArgs = {...expandedStepArgs, [group.group_id+'-'+si]: !expandedStepArgs[group.group_id+'-'+si]}">
+                                                                                <td class="px-3 py-2 text-slate-400" x-text="si + 1"></td>
+                                                                                <td class="px-3 py-2 font-mono font-semibold text-indigo-600 whitespace-nowrap" x-text="step.tool_name"></td>
+                                                                                <td class="px-3 py-2 text-slate-600 max-w-[200px]">
+                                                                                    <div :class="expandedStepArgs[group.group_id+'-'+si] ? 'whitespace-pre-wrap break-all' : 'truncate'"
+                                                                                         x-text="JSON.stringify(step.args)"></div>
+                                                                                </td>
+                                                                                <td class="px-3 py-2 text-slate-600 max-w-[240px]">
+                                                                                    <div :class="expandedStepResult[group.group_id+'-'+si] ? 'whitespace-pre-wrap break-all' : 'truncate'"
+                                                                                         x-text="step.result"></div>
+                                                                                </td>
+                                                                                <td class="px-3 py-2 text-center">
+                                                                                    <span :class="step.success ? 'text-emerald-500' : 'text-red-500'"
+                                                                                          x-text="step.success ? '✓' : '✗'"></span>
+                                                                                </td>
+                                                                            </tr>
+                                                                            <!-- Expanded args/result row -->
+                                                                            <tr x-show="expandedStepArgs[group.group_id+'-'+si] || expandedStepResult[group.group_id+'-'+si]"
+                                                                                class="border-t border-indigo-50 bg-indigo-50/40">
+                                                                                <td colspan="5" class="px-3 py-2 space-y-2">
+                                                                                    <div>
+                                                                                        <div class="text-xs font-semibold text-slate-400 mb-1">Args</div>
+                                                                                        <pre class="text-xs text-slate-700 bg-white border border-slate-100 rounded p-2 overflow-x-auto scrollbar-thin"
+                                                                                             x-text="JSON.stringify(step.args, null, 2)"></pre>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <div class="text-xs font-semibold text-slate-400 mb-1">Result</div>
+                                                                                        <pre class="text-xs text-slate-700 bg-white border border-slate-100 rounded p-2 overflow-x-auto scrollbar-thin max-h-48"
+                                                                                             x-text="step.result"></pre>
+                                                                                    </div>
+                                                                                    <template x-if="step.screenshot">
+                                                                                        <img :src="'data:image/png;base64,' + step.screenshot"
+                                                                                             class="rounded border border-slate-200 w-full max-h-64 object-contain object-top" />
+                                                                                    </template>
+                                                                                </td>
+                                                                            </tr>
+                                                                            </tbody>
+                                                                        </template>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="!group.steps || group.steps.length === 0">
+                                                            <div class="text-xs text-slate-400">No steps recorded</div>
+                                                        </template>
+
+                                                        <!-- Interaction graph -->
+                                                        <template x-if="group.dom_elements && group.dom_elements.length > 0">
+                                                            <div>
+                                                                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Interaction Graph</div>
+                                                                <div :id="'cytoscape-' + group.group_id"
+                                                                     class="w-full rounded-lg border border-slate-100 bg-slate-50"
+                                                                     style="height: 280px;"></div>
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="!group.dom_elements || group.dom_elements.length === 0">
+                                                            <div>
+                                                                <button @click="showBehaviorGraph = { ...showBehaviorGraph, [group.group_id]: !showBehaviorGraph[group.group_id] }; if (showBehaviorGraph[group.group_id]) $nextTick(() => renderBehaviorGraph(group.group_id, group))"
+                                                                        class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                                                                    <span x-text="showBehaviorGraph[group.group_id] ? '▲ Hide graph' : '▼ Show graph'"></span>
+                                                                </button>
+                                                                <template x-if="showBehaviorGraph[group.group_id]">
+                                                                    <div :id="'mermaid-' + group.group_id"
+                                                                         class="mt-3 overflow-x-auto rounded-lg bg-slate-50 p-3 min-h-[64px] flex items-center justify-center">
+                                                                        <span class="text-xs text-slate-400">Rendering graph...</span>
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!selectedTaskPlannerReport.behavior_checks || selectedTaskPlannerReport.behavior_checks.length === 0">
+                                            <p class="text-sm text-slate-400 text-center py-8">No behavior checks</p>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <!-- Visual rubric checks -->
+                                <div class="pt-1">
+                                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Visual Rubric Checks</div>
+                                    <div class="space-y-3">
+                                        <template x-if="selectedTaskPlannerReport.visual_checks.length > 0 && selectedTaskPlannerReport.visual_checks[0].screenshot">
+                                            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Page Screenshot</div>
+                                                <img :src="'data:image/png;base64,' + selectedTaskPlannerReport.visual_checks[0].screenshot"
+                                                     class="w-full rounded-lg border border-slate-100 shadow-sm"
+                                                     style="max-height: 400px; object-fit: contain; object-position: top;"
+                                                     alt="Page screenshot">
+                                            </div>
+                                        </template>
+                                        <template x-for="check in selectedTaskPlannerReport.visual_checks" :key="check.check_id">
+                                            <div class="bg-white rounded-xl border p-4 shadow-sm"
+                                                 :class="check.passed ? 'border-emerald-200' : 'border-red-200'">
+                                                <div class="flex items-start gap-3">
+                                                    <span class="text-lg font-bold flex-shrink-0 leading-none mt-0.5"
+                                                          :class="check.passed ? 'text-emerald-500' : 'text-red-500'"
+                                                          x-text="check.passed ? '✓' : '✗'"></span>
+                                                    <div class="flex-1 min-w-0">
+                                                        <div class="flex items-center gap-2 flex-wrap">
+                                                            <span class="text-sm font-semibold text-slate-800" x-text="check.check_id"></span>
+                                                            <template x-if="check.category">
+                                                                <span class="text-xs px-1.5 py-0 rounded bg-indigo-50 text-indigo-600 font-mono" x-text="check.category"></span>
+                                                            </template>
+                                                        </div>
+                                                        <div class="mt-1 text-sm text-slate-600 leading-relaxed" x-text="check.detail"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="selectedTaskPlannerReport.visual_checks.length === 0">
+                                            <p class="text-sm text-slate-400">No visual checks (merged flow uses interaction agent results)</p>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                    </div>
+                </template>
+
+            </div>
+        </div>
+    </template>
+</div>
+
+<script>
+    mermaid.initialize({ startOnLoad: false, theme: 'neutral', flowchart: { curve: 'basis' } });
+
+    function dashboard() {
+        return {
+            tasks: [],
+            stats: {
+                total: 0, pending: 0, running: 0,
+                completed: 0, failed: 0, passed: 0, failed_verdict: 0
+            },
+            selectedTask: null,
+            selectedTaskEvents: [],
+            selectedTaskPlannerReport: null,
+            activePhase: 'source',
+            expandedBehavior: {},
+            showBehaviorGraph: {},
+            expandedStepScreenshot: {},
+            expandedStepArgs: {},
+            expandedStepResult: {},
+            eventScreenshotExpanded: {},
+            eventScreenshotCache: {},
+            eventScreenshotLoading: {},
+            eventScreenshotError: {},
+            expandedEventData: {},
+            cytoscapeInstances: {},
+            editingQueries: false,
+            editedQueries: [],
+            querySaveStatus: null,
+            expandedPlannedTask: {},
+            filterStatus: 'all',
+            filterMinScore: '',
+            filterMaxDuration: '',
+            filterMinInteractions: '',
+            filterMaxInteractions: '',
+            sortBy: 'newest',
+            queryExpanded: false,
+            expandedTaskQuery: {},
+            phases: [
+                { key: 'source',   label: 'SOURCE'   },
+                { key: 'dom',      label: 'DOM'      },
+                { key: 'interaction_visual', label: 'INTERACTION+VISUAL' },
+            ],
+            ws: null,
+            _pollTimer: null,
+
+            get filteredTasks() {
+                let result = this.tasks;
+                if (this.filterStatus !== 'all') {
+                    result = result.filter(t => {
+                        if (this.filterStatus === 'passed')  return t.status === 'completed' && t.verdict === true;
+                        if (this.filterStatus === 'failed')  return t.status === 'completed' && t.verdict === false;
+                        if (this.filterStatus === 'error')   return t.status === 'failed';
+                        if (this.filterStatus === 'running') return t.status === 'running';
+                        return true;
+                    });
+                }
+                if (this.filterMinScore !== '' && this.filterMinScore !== null) {
+                    const min = parseFloat(this.filterMinScore) / 100;
+                    result = result.filter(t => t.overall_score == null || t.overall_score >= min);
+                }
+                if (this.filterMaxDuration !== '' && this.filterMaxDuration !== null) {
+                    const max = parseFloat(this.filterMaxDuration);
+                    result = result.filter(t => t.duration_seconds !== null && t.duration_seconds !== undefined && t.duration_seconds <= max);
+                }
+                if (this.filterMinInteractions !== '' && this.filterMinInteractions !== null) {
+                    const min = parseInt(this.filterMinInteractions);
+                    result = result.filter(t => t.interaction_count != null && t.interaction_count >= min);
+                }
+                if (this.filterMaxInteractions !== '' && this.filterMaxInteractions !== null) {
+                    const max = parseInt(this.filterMaxInteractions);
+                    result = result.filter(t => t.interaction_count != null && t.interaction_count <= max);
+                }
+                const sorted = [...result];
+                if (this.sortBy === 'score_desc')        sorted.sort((a, b) => (b.overall_score ?? -1) - (a.overall_score ?? -1));
+                if (this.sortBy === 'score_asc')         sorted.sort((a, b) => (a.overall_score ?? 999) - (b.overall_score ?? 999));
+                if (this.sortBy === 'duration_desc')     sorted.sort((a, b) => (b.duration_seconds ?? 0) - (a.duration_seconds ?? 0));
+                if (this.sortBy === 'duration_asc')      sorted.sort((a, b) => (a.duration_seconds ?? 999999) - (b.duration_seconds ?? 999999));
+                if (this.sortBy === 'oldest')            sorted.sort((a, b) => (a.created_at ?? 0) - (b.created_at ?? 0));
+                if (this.sortBy === 'interaction_desc')  sorted.sort((a, b) => (b.interaction_count ?? -1) - (a.interaction_count ?? -1));
+                if (this.sortBy === 'interaction_asc')   sorted.sort((a, b) => (a.interaction_count ?? 999) - (b.interaction_count ?? 999));
+                return sorted;
+            },
+
+            taskCount(status) {
+                if (status === 'passed')  return this.tasks.filter(t => t.status === 'completed' && t.verdict === true).length;
+                if (status === 'failed')  return this.tasks.filter(t => t.status === 'completed' && t.verdict === false).length;
+                if (status === 'error')   return this.tasks.filter(t => t.status === 'failed').length;
+                if (status === 'running') return this.tasks.filter(t => t.status === 'running').length;
+                return this.tasks.length;
+            },
+
+            formatDuration(seconds) {
+                if (!seconds && seconds !== 0) return '';
+                if (seconds < 60) return `${Math.round(seconds)}s`;
+                const m = Math.floor(seconds / 60);
+                const s = Math.round(seconds % 60);
+                return s > 0 ? `${m}m ${s}s` : `${m}m`;
+            },
+
+            init() {
+                this.loadTasks();
+                this.loadStats();
+                this.connectWebSocket();
+                this._schedulePolling();
+            },
+
+            _schedulePolling() {
+                const hasRunning = this.tasks.some(t => t.status === 'running' || t.status === 'pending');
+                const interval = hasRunning ? 2000 : 10000;
+                clearTimeout(this._pollTimer);
+                this._pollTimer = setTimeout(async () => {
+                    await Promise.all([this.loadTasks(), this.loadStats()]);
+                    this._schedulePolling();
+                }, interval);
+            },
+
+            async loadTasks() {
+                try {
+                    const r = await fetch('/api/tasks');
+                    this.tasks = (await r.json()).tasks;
+                } catch (e) { console.error('loadTasks:', e); }
+            },
+
+            async loadStats() {
+                try {
+                    const r = await fetch('/api/stats');
+                    this.stats = await r.json();
+                } catch (e) { console.error('loadStats:', e); }
+            },
+
+            async selectTask(task) {
+                this.selectedTask = task;
+                this.selectedTaskPlannerReport = null;
+                this.selectedTaskEvents = [];
+                this.activePhase = 'source';
+                this.expandedBehavior = {};
+                this.showBehaviorGraph = {};
+                this.expandedStepScreenshot = {};
+                this.expandedStepArgs = {};
+                this.expandedStepResult = {};
+                this.expandedEventData = {};
+                this.eventScreenshotExpanded = {};
+                this.eventScreenshotCache = {};
+                this.eventScreenshotLoading = {};
+                this.eventScreenshotError = {};
+                this.queryExpanded = false;
+                Object.values(this.cytoscapeInstances).forEach(cy => cy.destroy());
+                this.cytoscapeInstances = {};
+                this.editingQueries = false;
+                this.editedQueries = [];
+                this.querySaveStatus = null;
+                this.expandedPlannedTask = {};
+
+                try {
+                    const r = await fetch(`/api/tasks/${task.id}/events`);
+                    this.selectedTaskEvents = (await r.json()).events;
+                } catch (e) { console.error('loadEvents:', e); }
+
+                try {
+                    const r = await fetch(`/api/tasks/${task.id}/planner_report`);
+                    if (r.ok) this.selectedTaskPlannerReport = await r.json();
+                } catch (e) { /* silent */ }
+            },
+
+            getPhaseScore(phaseKey) {
+                if (!this.selectedTaskPlannerReport) return null;
+                const r = this.selectedTaskPlannerReport;
+                if (phaseKey === 'interaction_visual') {
+                    const behaviorChecks = r.behavior_checks || [];
+                    const visualChecks = r.visual_checks || [];
+                    const behaviorApplicable = behaviorChecks.filter(
+                        c => this.getBehaviorVerdictType(c) !== 'not_applicable'
+                    );
+                    const behaviorPassed = behaviorApplicable.filter(
+                        c => this.getBehaviorVerdictType(c) === 'passed'
+                    ).length;
+                    const visualPassed = visualChecks.filter(c => c.passed).length;
+                    const total = behaviorApplicable.length + visualChecks.length;
+                    if (total === 0) return null;
+                    const passed = behaviorPassed + visualPassed;
+                    return { passed, total, score: passed / total };
+                }
+                const arrayMap = { source: r.source_checks, dom: r.dom_checks };
+                const checks = arrayMap[phaseKey];
+                if (!checks || checks.length === 0) return null;
+                const total = checks.length;
+                const passed = checks.filter(c => c.passed).length;
+                return { passed, total, score: passed / total };
+            },
+
+            getBehaviorVerdictType(check) {
+                if (!check) return 'failed';
+                if (!check.verdict) return 'failed';
+                if (check.verdict.verdict) return check.verdict.verdict;
+                return check.verdict.passed ? 'passed' : 'failed';
+            },
+
+            getBehaviorGroups() {
+                const checks = (this.selectedTaskPlannerReport && this.selectedTaskPlannerReport.behavior_checks) || [];
+                const grouped = {};
+                checks.forEach((check, idx) => {
+                    const baseGroupId = check.execution_group_id || 'legacy';
+                    const scenarioId = check.scenario_id || `scenario_${idx}`;
+                    const gid = `${baseGroupId}::${scenarioId}`;
+                    if (!grouped[gid]) {
+                        grouped[gid] = {
+                            group_id: gid,
+                            execution_group_id: baseGroupId,
+                            scenario_id: scenarioId,
+                            query_text: check.query_text || '',
+                            checks: [],
+                            steps: check.steps || [],
+                            dom_elements: check.dom_elements || [],
+                            iterations: check.iterations || 0,
+                            summary: 'passed',
+                        };
+                    }
+                    grouped[gid].checks.push(check);
+                    const vt = this.getBehaviorVerdictType(check);
+                    if (vt === 'failed') grouped[gid].summary = 'failed';
+                    else if (vt === 'not_applicable' && grouped[gid].summary === 'passed') grouped[gid].summary = 'not_applicable';
+                });
+                return Object.values(grouped);
+            },
+
+            buildMermaidSyntax(steps, verdict, queryText) {
+                const trunc = (s, n) => s && s.length > n ? s.slice(0, n) + '...' : (s || '');
+                const esc = (s) => String(s).replace(/"/g, '#quot;').replace(/[<>]/g, '').replace(/\n/g, ' ');
+                const passed = verdict && verdict.passed;
+                const vLabel = esc(trunc((passed ? 'PASSED: ' : 'FAILED: ') + (verdict && verdict.reason || ''), 60));
+                const qLabel = esc(trunc(queryText || '', 50));
+
+                let lines = ['graph LR'];
+                lines.push(`    Q["${qLabel}"]`);
+
+                if (!steps || steps.length === 0) {
+                    lines.push(`    V["${vLabel}"]`);
+                    lines.push('    Q --> V');
+                } else {
+                    steps.forEach((s, i) => {
+                        const firstArg = Object.values(s.args || {})[0] || '';
+                        const label = esc(`${s.tool_name}: ${trunc(String(firstArg), 28)}`);
+                        lines.push(`    S${i}["${label}"]`);
+                    });
+                    lines.push(`    V["${vLabel}"]`);
+                    lines.push('    Q --> S0');
+                    for (let i = 0; i < steps.length - 1; i++) {
+                        lines.push(`    S${i} --> S${i + 1}`);
+                    }
+                    lines.push(`    S${steps.length - 1} --> V`);
+                    const ids = steps.map((_, i) => `S${i}`).join(',');
+                    lines.push(`    classDef step fill:#3b82f6,color:#fff,stroke:#2563eb`);
+                    lines.push(`    class ${ids} step`);
+                }
+                lines.push(`    classDef passed fill:#22c55e,color:#fff,stroke:#16a34a`);
+                lines.push(`    classDef failed fill:#ef4444,color:#fff,stroke:#dc2626`);
+                lines.push(`    class V ${passed ? 'passed' : 'failed'}`);
+                return lines.join('\n');
+            },
+
+            async renderBehaviorGraphs() {
+                // no-op: graphs are now rendered on-demand via renderBehaviorGraph(i)
+            },
+
+            async toggleEventScreenshot(event) {
+                const idx = event.event_index;
+                const next = !this.eventScreenshotExpanded[idx];
+                this.eventScreenshotExpanded = { ...this.eventScreenshotExpanded, [idx]: next };
+                if (!next || this.eventScreenshotCache[idx]) return;
+                await this.loadEventScreenshot(event);
+            },
+
+            async loadEventScreenshot(event) {
+                const idx = event.event_index;
+                if (!event.screenshot_url) return;
+                this.eventScreenshotLoading = { ...this.eventScreenshotLoading, [idx]: true };
+                this.eventScreenshotError = { ...this.eventScreenshotError, [idx]: null };
+                try {
+                    const r = await fetch(event.screenshot_url);
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    const payload = await r.json();
+                    this.eventScreenshotCache = { ...this.eventScreenshotCache, [idx]: payload.screenshot || null };
+                } catch (e) {
+                    this.eventScreenshotError = { ...this.eventScreenshotError, [idx]: `Failed to load screenshot: ${e.message || e}` };
+                } finally {
+                    this.eventScreenshotLoading = { ...this.eventScreenshotLoading, [idx]: false };
+                }
+            },
+
+            toggleBehaviorCard(key, group) {
+                const next = !this.expandedBehavior[key];
+                this.expandedBehavior = { ...this.expandedBehavior, [key]: next };
+                if (next && group.dom_elements && group.dom_elements.length > 0) {
+                    this.$nextTick(() => this.renderCytoscapeGraph(key, group));
+                }
+            },
+
+            toggleStepExpand(groupKey, stepIndex, field) {
+                const k = `${groupKey}__${stepIndex}__${field}`;
+                if (field === 'args') {
+                    this.expandedStepArgs = { ...this.expandedStepArgs, [k]: !this.expandedStepArgs[k] };
+                } else {
+                    this.expandedStepResult = { ...this.expandedStepResult, [k]: !this.expandedStepResult[k] };
+                }
+            },
+
+            buildCytoscapeData(check) {
+                const elems = [];
+                const domElements = check.dom_elements || [];
+                const steps = check.steps || [];
+                const passed = check.summary
+                    ? check.summary === 'passed'
+                    : (check.verdict && (check.verdict.passed || check.verdict.verdict === 'passed'));
+
+                const interactionMap = {};
+                const sequence = [];
+                steps.forEach((step, idx) => {
+                    if (step.element_id && (step.tool_name === 'click_element' || step.tool_name === 'type_text')) {
+                        const type = step.tool_name === 'click_element' ? 'click' : 'type';
+                        if (!interactionMap[step.element_id]) interactionMap[step.element_id] = { type, count: 0 };
+                        interactionMap[step.element_id].count++;
+                        sequence.push({ element_id: step.element_id, type, stepNum: idx + 1 });
+                    }
+                });
+
+                const addedIds = new Set();
+                domElements.forEach(el => {
+                    addedIds.add(el.id);
+                    const ia = interactionMap[el.id];
+                    elems.push({ data: {
+                        id: el.id,
+                        label: el.name ? `${el.role}\n${el.name}` : el.role,
+                        role: el.role, name: el.name,
+                        interacted: !!ia,
+                        interactionType: ia ? ia.type : null,
+                        count: ia ? ia.count : 0,
+                    }});
+                });
+                sequence.forEach(({ element_id }) => {
+                    if (!addedIds.has(element_id)) {
+                        addedIds.add(element_id);
+                        const ia = interactionMap[element_id];
+                        elems.push({ data: {
+                            id: element_id, label: element_id,
+                            interacted: true, interactionType: ia.type, count: ia.count,
+                        }});
+                    }
+                });
+
+                elems.push({ data: { id: '__start__', label: 'START', nodeType: 'start' } });
+                elems.push({ data: { id: '__verdict__', label: passed ? 'PASSED' : 'FAILED', nodeType: passed ? 'passed' : 'failed' } });
+
+                if (sequence.length > 0) {
+                    elems.push({ data: { id: 'e_s0', source: '__start__', target: sequence[0].element_id, label: String(sequence[0].stepNum) } });
+                    for (let k = 0; k < sequence.length - 1; k++) {
+                        elems.push({ data: { id: `e_${k}`, source: sequence[k].element_id, target: sequence[k+1].element_id, label: String(sequence[k+1].stepNum) } });
+                    }
+                    elems.push({ data: { id: 'e_sv', source: sequence[sequence.length-1].element_id, target: '__verdict__', label: '' } });
+                } else {
+                    elems.push({ data: { id: 'e_sv', source: '__start__', target: '__verdict__', label: '' } });
+                }
+                return elems;
+            },
+
+            renderCytoscapeGraph(key, group) {
+                const container = document.getElementById(`cytoscape-${key}`);
+                if (!container) return;
+                if (this.cytoscapeInstances[key]) this.cytoscapeInstances[key].destroy();
+                const cy = cytoscape({
+                    container,
+                    elements: this.buildCytoscapeData(group),
+                    style: [
+                        { selector: 'node', style: {
+                            'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': '80px',
+                            'font-size': '11px', 'background-color': '#e2e8f0', 'color': '#475569',
+                            'text-valign': 'center', 'text-halign': 'center',
+                            'width': '90px', 'height': '44px', 'shape': 'roundrectangle',
+                            'border-width': 1, 'border-color': '#cbd5e1',
+                        }},
+                        { selector: 'node[?interacted]', style: {
+                            'background-color': '#3b82f6', 'color': '#fff', 'border-color': '#2563eb',
+                        }},
+                        { selector: 'node[interactionType = "type"]', style: {
+                            'background-color': '#f59e0b', 'color': '#fff', 'border-color': '#d97706',
+                        }},
+                        { selector: 'node[nodeType = "start"]', style: {
+                            'background-color': '#10b981', 'color': '#fff', 'border-color': '#059669',
+                            'shape': 'ellipse', 'width': '60px', 'height': '36px',
+                        }},
+                        { selector: 'node[nodeType = "passed"]', style: {
+                            'background-color': '#22c55e', 'color': '#fff', 'border-color': '#16a34a',
+                            'shape': 'ellipse', 'width': '70px', 'height': '36px',
+                        }},
+                        { selector: 'node[nodeType = "failed"]', style: {
+                            'background-color': '#ef4444', 'color': '#fff', 'border-color': '#dc2626',
+                            'shape': 'ellipse', 'width': '70px', 'height': '36px',
+                        }},
+                        { selector: 'edge', style: {
+                            'width': 2, 'line-color': '#94a3b8',
+                            'target-arrow-color': '#94a3b8', 'target-arrow-shape': 'triangle',
+                            'curve-style': 'bezier', 'label': 'data(label)',
+                            'font-size': '10px', 'color': '#64748b',
+                            'text-background-color': '#fff', 'text-background-opacity': 1,
+                            'text-background-padding': '2px',
+                        }},
+                    ],
+                    layout: { name: 'dagre', rankDir: 'LR', padding: 20, nodeSep: 40, rankSep: 80 },
+                });
+                this.cytoscapeInstances = { ...this.cytoscapeInstances, [key]: cy };
+            },
+
+            async renderBehaviorGraph(key, group) {
+                await this.$nextTick();
+                if (!group) return;
+                const el = document.getElementById(`mermaid-${key}`);
+                if (!el) return;
+                const summaryVerdict = { passed: group.summary === 'passed', reason: group.summary };
+                const syntax = this.buildMermaidSyntax(group.steps || [], summaryVerdict, group.query_text);
+                try {
+                    const { svg } = await mermaid.render(`mermaid-svg-${key}-${Date.now()}`, syntax);
+                    el.innerHTML = svg;
+                } catch (err) {
+                    el.innerHTML = `<p class="text-xs text-red-400 p-2">Graph error: ${err.message}</p>`;
+                }
+            },
+
+            startEditingQueries() {
+                this.editedQueries = (this.selectedTaskPlannerReport.behavior_checks || []).map(c => ({
+                    query_id: c.query_id,
+                    standard_id: c.standard_id || (c.query_id ? c.query_id.split('__')[0] : ''),
+                    guideline_ref: c.guideline_ref || '',
+                    query_text: c.query_text,
+                    category: c.category || '',
+                    scenario_id: c.scenario_id || null,
+                    scenario_index: c.scenario_index || null,
+                    scenario_weight: c.scenario_weight || 1.0,
+                    check_nodes: c.check_nodes || [],
+                    execution_group_id: c.execution_group_id || null,
+                    execution_standard_ids: c.execution_standard_ids || [c.standard_id || c.query_id],
+                }));
+                this.editingQueries = true;
+                this.querySaveStatus = null;
+            },
+
+            cancelEditingQueries() {
+                this.editingQueries = false;
+                this.editedQueries = [];
+                this.querySaveStatus = null;
+            },
+
+            async saveEditedQueries() {
+                this.querySaveStatus = 'saving';
+                try {
+                    const r = await fetch(`/api/tasks/${this.selectedTask.id}/queries`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ queries: this.editedQueries }),
+                    });
+                    if (!r.ok) throw new Error(await r.text());
+                    this.querySaveStatus = 'saved';
+                    this.editingQueries = false;
+                } catch (e) {
+                    console.error('saveEditedQueries:', e);
+                    this.querySaveStatus = 'error';
+                }
+            },
+
+            connectWebSocket() {
+                const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                this.ws = new WebSocket(`${proto}//${window.location.host}/ws`);
+                this.ws.onopen = () => console.log('WS connected');
+                this.ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    if (msg.type === 'task_update' || msg.type === 'event') {
+                        this.loadTasks();
+                        this.loadStats();
+                    }
+                };
+                this.ws.onclose = () => setTimeout(() => this.connectWebSocket(), 3000);
+                this.ws.onerror = (e) => console.error('WS error:', e);
+            }
+        };
+    }
+</script>
+</body>
+</html>

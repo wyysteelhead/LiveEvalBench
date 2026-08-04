@@ -1,0 +1,135 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node modules (for fixtures)
+node_modules/
+.next/
+package-lock.json
+
+# Playwright
+playwright-report/
+test-results/
+
+# Claude
+CLAUDE.md
+PRD.md
+IMPLEMENTATION_SUMMARY.md
+*.env
+.lh/*
+*.db*
+
+.codex/*
+
+.runs
+
+artifacts/*
+
+report*.json
+
+merged*.json
+
+report*.png
+
+.tmp*
+
+fixtures/*.jsonl
+.*.jsonl
+.*.monitor.json*
+.*.csv
+.nfs*
+fixtures/*.csv
+fixtures/eval_subset_20*
+
+.report*.jsonl
+report*.jsonl
+
+# Paper-only prompt sample dump
+scripts/dump_agent_prompts.py
+docs/prompt_samples/
+
+# Claude Code local runtime state
+.claude/plans/
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
+.claude/skills/*
+!.claude/skills/livebench-setup/
+!.claude/skills/livebench-run/
+.claude/settings.local.json
+
+# Background run logs / one-off backups
+nohup.out
+*.bak_before_*
+
+# Eval shard outputs (report*.{json,png,jsonl} already ignored above)
+report*.shards/
+
+tests/*
+tests/unchecked_tests/*
+scripts/eval_backup/*
+cached configs/scoring_templates/*
+
+progress.md
+PRD.md
+web_guideline.md
+WEB_WORKFLOW.md
+ali.sh
+rubric.md
+agents/implementation_reviewer.json
+agents/ui_designer.json
+agents/ordinary_user.json
+agents/software_tester.json
+reviewer_experiment_plan.md
+experiment_results.md
+experiments/
+agents_ablation/
+significance_results.json
+scripts/gemini_judge.env

@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "id": "build_reviewer",
+  "name": "Build Reviewer",
+  "role": "evaluator",
+  "stage": "review",
+  "depends_on": [
+    "build_engineer"
+  ],
+  "description": "Read-only evaluator that judges build smoothness by inspecting the upstream build trajectory and logs. Does not rebuild the app or run any project command.",
+  "system_prompt": "You are the Build Reviewer. Your only job is to judge the build_smoothness of the project the Build Engineer just deployed, using the build trajectory and process logs it produced.\n\n## Input\n- Upstream build handoff: `process_log_dir`, `trajectory_log_paths`, `artifacts_path`, `trajectory_step_summaries`, `trajectory_error_signals`, `failure_snippets`, `build_dimension_outcomes`, `repair_event_count`, `transient_retry_count`, `repair_events`, `files_written` (informational, also exposed as `repair_actions` for back-compat), `path_review_hints`.\n- You are in READ-ONLY mode. Only `local_fs_read`, `read_file`, `search_source`, and `submit_verdict` are available. Do NOT attempt `npm install`, `npm run build`, or any other execution — those tools are not available and will not produce a verdict.\n\n## Required flow\n1. Read at least one file listed in the handoff's `trajectory_log_paths`, or list `process_log_dir` and read one of the timestamped stdout/stderr files inside it, BEFORE calling `submit_verdict`. A verdict that does not cite a real log file from the handoff is invalid and will be downgraded.\n2. Look at the build path the upstream agent actually took:\n   - For a static-HTML project, the build path is typically a single `python3 -m http.server` start and a CDP launch — there is no `npm run build`. Do NOT penalise the absence of a build script; static projects do not have one.\n   - For a Node/React/Vue project, look at npm install / npm run dev / npm run build outputs in the log.\n3. Decide each of the three checks below from what the LOG and the structured handoff counters actually show, not from re-reading `package.json` and inferring.\n\n## What counts as evidence\n- `no_extra_repair_needed`: pass iff `repair_event_count == 0`. A repair event is a modify-then-restart: a re-install, app re-start, CDP re-start, or `state=failed → state=ready` artifact flip that has at least one file write between it and the previous same-kind action (see `repair_events` for details, each entry has `kind`, `step_index`, `writes_between`). Fail only when `repair_event_count >= 1` and cite the specific `repair_events` entry. Do NOT use `files_written`/`repair_actions` as repair evidence on its own — long replies legitimately split into many writes, and small first-time authoring of config files (tsconfig.json, package.json) is normal. `transient_retry_count` (port retries, network-level install retries with no intervening edit) is HARMLESS and must not lower the verdict.\n- `no_build_warnings`: pass when the inspected log files do not contain warnings attributable to the generated project code or config (compiler warnings, deprecation warnings from the user's code, etc.). Network / CDN noise unrelated to the generated code is not a failure.\n- `no_build_crashes`: pass when the log files show no npm/install errors, missing-module errors, compile failures, runtime startup crashes, or `state=\"failed\"` in artifacts caused by the generated project code.\n\nIf any check fails, cite the exact log path and the line / signal that drove the verdict.\n\n## Hard rules\n- Read at most 3 files: one log (mandatory), optionally `artifacts.json`, optionally one source file if you need to confirm an error came from generated code rather than from a tooling default.\n- Do not re-read the same file repeatedly. If you find yourself reading the same path twice, you already have your answer.\n- Do not infer build failure from a missing `build` script in `package.json` for a static-HTML project; static projects do not need one. Use the upstream build's actual outcome (artifacts.json `state`, server reachability in the log) as the ground truth.\n- Never modify any file. Only `local_fs_read` / `read_file` / `search_source` then `submit_verdict`.",
+  "rubric": {
+    "scoring_mode": "pass_fail_na",
+    "dimensions": [
+      {
+        "id": "build_smoothness",
+        "name": "Build Smoothness",
+        "instruction": "Inspect the upstream build path and one or more log files from the handoff (trajectory_log_paths / process_log_dir). Judge whether the build completed cleanly without extra repair, warnings, or crashes caused by the generated code.",
+        "weight": 1.0,
+        "scoring": {
+          "method": "test_based",
+          "objective_weight": 1.0,
+          "subjective_weight": 0.0,
+          "checks": [
+            {
+              "id": "no_extra_repair_needed",
+              "name": "No Extra Repair Needed",
+              "instruction": "Pass iff handoff.repair_event_count == 0. A repair event is a modify-then-restart pattern (re-install / app re-start / CDP re-start / artifact state=failed→ready) with at least one file write between the two same-kind actions. Transient retries (port conflicts, network retries with no intervening edit) are NOT repair and must not fail this check. When failing, cite the specific repair_events entry (kind, step_index, writes_between)."
+            },
+            {
+              "id": "no_build_warnings",
+              "name": "No Build Warnings",
+              "instruction": "Pass only if the trajectory and inspected logs do not show warnings attributable to the generated project code or config."
+            },
+            {
+              "id": "no_build_crashes",
+              "name": "No Build Crashes",
+              "instruction": "Pass only if the trajectory and inspected logs do not show npm/install errors, missing-module errors, compile failures, runtime crashes, or startup failures caused by the generated project code or config."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "allowed_tools": [
+    "local_fs_read",
+    "read_file",
+    "search_source",
+    "submit_verdict"
+  ],
+  "runtime": {
+    "max_steps": 15,
+    "max_step_seconds": 180,
+    "max_total_seconds": 600
+  },
+  "output": {
+    "require_evidence": true,
+    "allow_not_applicable": false
+  },
+  "subtask_decomposition_policy": "Generate exactly ONE sub-task titled \"Read build logs\" under the build_smoothness dimension. The sub-task must (a) read at least one file from the upstream handoff's trajectory_log_paths or process_log_dir via local_fs_read before submitting a verdict, and (b) cite the log path and observed signal in the verdict reason. Do NOT generate sub-tasks that run build commands or inspect the source tree as the primary evidence — this agent is read-only and judges from upstream logs. Ignore any default 'split by major UI region' guidance; this agent has no UI concerns.",
+  "free_task_count": 0,
+  "enabled": true,
+  "tags": [
+    "review",
+    "engineering",
+    "build_path_review"
+  ],
+  "scoring": {
+    "max_score": 15,
+    "task_aggregation_mode": "strict"
+  }
+}

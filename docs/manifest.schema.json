@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "manifest.schema.json",
+  "title": "Manifest",
+  "description": "Project manifest describing how to set up and run the frontend application.",
+  "type": "object",
+  "required": ["name", "engines", "package_manager", "commands", "env", "ports_pref"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable project name"
+    },
+    "engines": {
+      "type": "object",
+      "required": ["node"],
+      "properties": {
+        "node": {
+          "type": "string",
+          "description": "Required Node.js version (semver range, e.g. '>=18.0.0')",
+          "pattern": "^[><=^~]?[0-9]"
+        }
+      },
+      "additionalProperties": { "type": "string" }
+    },
+    "package_manager": {
+      "type": "string",
+      "enum": ["npm", "pnpm", "yarn"],
+      "description": "Package manager to use"
+    },
+    "commands": {
+      "type": "object",
+      "required": ["dev"],
+      "properties": {
+        "dev":   { "type": "string", "description": "Command to start the dev server" },
+        "build": { "type": "string", "description": "Command to build for production" },
+        "test":  { "type": "string", "description": "Command to run tests" },
+        "lint":  { "type": "string", "description": "Command to run linter" }
+      },
+      "additionalProperties": { "type": "string" }
+    },
+    "env": {
+      "type": "object",
+      "description": "Required environment variables (key → description or default value)",
+      "additionalProperties": { "type": "string" }
+    },
+    "ports_pref": {
+      "type": "array",
+      "description": "Preferred port numbers for the application",
+      "items": { "type": "integer", "minimum": 1, "maximum": 65535 }
+    },
+    "setup": {
+      "type": "array",
+      "description": "Optional ordered setup steps to run before dev",
+      "items": {
+        "type": "object",
+        "required": ["cmd"],
+        "properties": {
+          "cmd":     { "type": "string" },
+          "cwd":     { "type": "string" },
+          "timeout": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}
