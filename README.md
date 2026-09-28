@@ -7,7 +7,7 @@
   <h1>LiveEvalBench: Toward Open-World Evaluation for Web Generation</h1>
 
   <p>
-    📄 <a href="">arXiv</a>
+    📄 <a href="https://arxiv.org/pdf/2608.03689">arXiv</a>
     &nbsp;•&nbsp; 🤗 <a href="https://huggingface.co/datasets/wyysteelhead/LiveEvalBench">HuggingFace Dataset</a>
   </p>
 
