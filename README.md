@@ -6,11 +6,6 @@
 
   <h1>LiveEvalBench: Toward Open-World Evaluation for Web Generation</h1>
 
-  <p>
-    📄 <a href="">arXiv</a>
-    &nbsp;•&nbsp; 🤗 <a href="">HuggingFace Dataset</a>
-  </p>
-
   <p align="center">
     <img src="figs/overview.png" alt="LiveEvalBench Overview" width="800">
   </p>
@@ -108,7 +103,7 @@ cp .env.example .env
 
 ### 0. Get the benchmark dataset
 
-Download `benchmark.jsonl` from the [HuggingFace dataset page](https://huggingface.co/datasets/wyysteelhead/LiveEvalBench) and place it locally, e.g. `./benchmark.jsonl`. Each row is one query with its per-query checklist (see [Data Format](#data-format)).
+The benchmark dataset is already downloaded.
 
 ### 1. Run the evaluation
 
