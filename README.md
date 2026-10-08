@@ -7,8 +7,8 @@
   <h1>LiveEvalBench: Toward Open-World Evaluation for Web Generation</h1>
 
   <p>
-    📄 <a href="https://arxiv.org/pdf/2608.03689">arXiv</a>
-    &nbsp;•&nbsp; 🤗 <a href="https://huggingface.co/datasets/wyysteelhead/LiveEvalBench">HuggingFace Dataset</a>
+    📄 <a href="">arXiv</a>
+    &nbsp;•&nbsp; 🤗 <a href="">HuggingFace Dataset</a>
   </p>
 
   <p align="center">
@@ -218,26 +218,6 @@ LiveEvalBench/
 └── requirements.txt
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## BibTeX
-
-```bibtex
-@misc{liveevalbench2025,
-  title        = {LiveEvalBench: An Agentic Benchmark for Live Evaluation of LLM-Generated Frontend Code},
-  author       = {Yiyao Wang, Zhen Wen, Yinghao Tang, Yixiao Fu, Lin Yuan, Xiaolu Zhang, Jun Zhou, Wei Chen},
-  year         = {2026},
-  publisher    = {arXiv},
-  howpublished = {\url{https://github.com/wyysteelhead/LiveEvalBench}},
-}
-```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Contact
-
-- Project lead: Yiyao Wang Email: wangyiyao@zju.edu.cn
-- Project link: https://github.com/wyysteelhead/LiveEvalBench
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
